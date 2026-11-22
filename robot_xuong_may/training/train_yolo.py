@@ -4,8 +4,8 @@
 HUẤN LUYỆN YOLO (chạy trên LAPTOP có GPU hoặc Google Colab – KHÔNG train trên Pi 4)
 
   pip install -r requirements-train.txt
-  python training/train_yolo.py                          # YOLO11n, 120 epoch, ảnh 320
-  python training/train_yolo.py --model yolov8n.pt --epochs 150 --imgsz 416
+  python training/train_yolo.py                          # theo kế hoạch: YOLO11n, 50 epochs, ảnh 416, batch Auto
+  python training/train_yolo.py --epochs 80 --imgsz 416    # train lại lâu hơn nếu còn thời gian
   python training/train_yolo.py --export                 # train xong xuất luôn NCNN cho Pi
 
 Kết quả: runs/detect/<tên>/weights/best.pt  (+ đồ thị mAP, confusion matrix cho báo cáo)
@@ -23,11 +23,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default=str(PROJECT_DIR / "training" / "data.yaml"))
     ap.add_argument("--model", default="yolo11n.pt", help="yolo11n.pt / yolov8n.pt (bản nano cho Pi 4)")
-    ap.add_argument("--epochs", type=int, default=120)
-    ap.add_argument("--imgsz", type=int, default=320, help="NÊN bằng YOLO_IMGSZ dùng trên robot")
-    ap.add_argument("--batch", type=int, default=32)
+    ap.add_argument("--epochs", type=int, default=50)
+    ap.add_argument("--imgsz", type=int, default=416, help="NÊN bằng YOLO_IMGSZ dùng trên robot")
+    ap.add_argument("--batch", type=int, default=-1, help="-1 = Auto (tự chọn theo bộ nhớ GPU)")
     ap.add_argument("--device", default=None, help="0 = GPU, cpu = CPU (mặc định tự chọn)")
-    ap.add_argument("--name", default="tram_xuong_may")
+    ap.add_argument("--name", default="tram3")
     ap.add_argument("--export", action="store_true", help="xuất NCNN sau khi train")
     args = ap.parse_args()
 
@@ -65,6 +65,8 @@ def main():
         sys.path.insert(0, str(PROJECT_DIR))
         from training.export_model import export
         export(best, args.imgsz)
+    else:
+        print("Bàn giao cho người viết code: best.pt + args.yaml + results.csv (cùng thư mục run)")
 
 
 if __name__ == "__main__":

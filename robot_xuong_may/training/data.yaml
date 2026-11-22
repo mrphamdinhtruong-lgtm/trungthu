@@ -1,14 +1,15 @@
 # =====================================================================
-#  Bộ dữ liệu YOLO – Robot thu gom rác xưởng may
-#  Tên lớp phải trùng với robot/config.py (STATIONS[...]["class"], OBSTACLE_CLASSES)
+#  Bộ dữ liệu YOLO – Robot thu gom rác xưởng may (kế hoạch train ngày 1)
+#  MỘT mô hình chung cho cả 3 trạm. Tên & THỨ TỰ lớp phải trùng robot/config.py MODEL_CLASSES.
 # =====================================================================
 path: ../dataset          # thư mục gốc dữ liệu (tính từ file này)
 train: images/train
 val: images/val
+test: images/test         # tập giữ riêng – chỉ dùng đánh giá cuối, không dùng chọn mô hình
 
 names:
-  0: tram1      # biển báo TRẠM 1
-  1: tram2      # biển báo TRẠM 2
-  2: tram3      # biển báo TRẠM 3
-  3: vat_can    # vật cản: thùng, xe đẩy, cuộn vải, ghế, hộp...
-  4: nguoi      # người (công nhân) đứng / đi trên đường robot
+  0: tram_1     # khối số / biển TRẠM 1
+  1: tram_2     # khối số / biển TRẠM 2
+  2: tram_3     # khối số / biển TRẠM 3
+# Sau này muốn YOLO dừng cả khi thấy người / vật cản: thêm "3: vat_can", "4: nguoi",
+# thêm vào MODEL_CLASSES trong robot/config.py rồi train lại.

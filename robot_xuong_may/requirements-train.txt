@@ -1,3 +1,6 @@
-# ---- Huấn luyện YOLO trên laptop có GPU / Google Colab ----
+# ---- Huấn luyện / xuất mô hình (laptop có GPU, Colab, hoặc máy của người viết code) ----
 ultralytics
+onnx
+onnxslim             # làm gọn ONNX khi xuất
+onnxruntime          # kiểm tra best.onnx sau khi xuất
 matplotlib

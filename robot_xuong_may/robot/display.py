@@ -303,6 +303,8 @@ class Display:
             lines.append(("Lộ trình đã dạy: " + (", ".join(f"{a}→{b}" for a, b in legs) if legs else "chưa có"),
                           (200, 200, 200)))
         lines.append((f"Ảnh {info.get('fps', 0):.1f} FPS  YOLO {info.get('yolo_ms', 0):.0f} ms", (200, 200, 200)))
+        if info.get("model"):
+            lines.append((f"Mô hình: {info['model']}", (160, 170, 180)))
         for w in info.get("warnings", []):
             lines.append((w, (255, 183, 77)))
         for text, col in lines:

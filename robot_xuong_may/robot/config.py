@@ -99,12 +99,16 @@ CAMERA_VFOV_DEG = 48.8              # Góc nhìn dọc Camera Module 2
 CAMERA_HEIGHT_M = 0.25              # Chiều cao tâm ống kính so với sàn (ĐO LẠI!)
 CAMERA_TILT_DEG = 0.0               # Góc chúc xuống của camera (+ = chúc xuống)
 
-MODEL_PATH = "models/best_ncnn_model"   # Mô hình đã xuất NCNN (nhanh nhất trên Pi 4); cũng nhận .pt / .onnx
-YOLO_IMGSZ = 320                    # Kích thước ảnh suy luận (320 cho Pi 4 ~8-12 FPS)
+MODEL_PATH = "models/best.onnx"     # best.onnx + best.metadata.json (xuất bằng training/export_model.py)
+                                    # cũng nhận best.pt / *_ncnn_model (cần cài ultralytics)
+YOLO_IMGSZ = 416                    # Theo kế hoạch train: ảnh 416 (ONNX tự lấy kích thước trong metadata)
 YOLO_CONF = 0.45                    # Ngưỡng tin cậy chung
 YOLO_IOU = 0.50
 
-# Tên lớp phải TRÙNG với training/data.yaml
+# Tên & THỨ TỰ lớp phải TRÙNG với training/data.yaml và mô hình nhóm train bàn giao
+# (kế hoạch train: 0 = tram_1, 1 = tram_2, 2 = tram_3). Khi xuất / nạp mô hình sẽ kiểm tra.
+MODEL_CLASSES = ("tram_1", "tram_2", "tram_3")
+# Lớp vật cản (nếu sau này train thêm). Mô hình 3 lớp hiện tại không có -> vật cản do NHẬN DIỆN SÀN phát hiện.
 OBSTACLE_CLASSES = ("vat_can", "nguoi")
 
 # =====================================================================
@@ -113,13 +117,14 @@ OBSTACLE_CLASSES = ("vat_can", "nguoi")
 # class       : tên lớp YOLO của biển báo trạm
 # name        : chữ hiển thị trên màn hình
 # wait_s      : thời gian dừng chờ công nhân bỏ rác / vải vụn
-# marker_h_m  : chiều cao thật của biển báo (m) – dùng ước lượng khoảng cách
+# marker_h_m  : chiều cao thật của biển báo / KHỐI SỐ (m) – dùng ước lượng khoảng cách (ĐO LẠI!)
 # search_dir  : chiều quay khi tìm trạm: +1 = quay trái (CCW), -1 = quay phải (CW)
 # heading_deg : (tùy chọn) hướng la bàn gần đúng nhìn về trạm, None = không dùng
 STATIONS = {
-    1: {"class": "tram1", "name": "TRẠM 1", "wait_s": 20.0, "marker_h_m": 0.20, "search_dir": -1, "heading_deg": None},
-    2: {"class": "tram2", "name": "TRẠM 2", "wait_s": 20.0, "marker_h_m": 0.20, "search_dir": -1, "heading_deg": None},
-    3: {"class": "tram3", "name": "TRẠM 3", "wait_s": 20.0, "marker_h_m": 0.20, "search_dir": -1, "heading_deg": None},
+#   (kế hoạch ngày 1: chờ 15 s; yêu cầu đề tài ban đầu 20 s -> chỉ sửa wait_s)
+    1: {"class": "tram_1", "name": "TRẠM 1", "wait_s": 15.0, "marker_h_m": 0.20, "search_dir": -1, "heading_deg": None},
+    2: {"class": "tram_2", "name": "TRẠM 2", "wait_s": 15.0, "marker_h_m": 0.20, "search_dir": -1, "heading_deg": None},
+    3: {"class": "tram_3", "name": "TRẠM 3", "wait_s": 15.0, "marker_h_m": 0.20, "search_dir": -1, "heading_deg": None},
 }
 ROUTE = (1, 2, 3)                   # Thứ tự đi qua các trạm
 ROUTE_LOOP = True                   # True: hết trạm 3 quay lại trạm 1 (chạy vòng liên tục)

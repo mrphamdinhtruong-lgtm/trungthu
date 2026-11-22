@@ -1,6 +1,6 @@
 # ROBOT THU GOM RÁC / VẢI VỤN XƯỞNG MAY
 
-Robot 4 bánh mecanum tự đi đến **TRẠM 1 → TRẠM 2 → TRẠM 3**, dừng **20 giây** cho công nhân bỏ rác / vải vụn,
+Robot 4 bánh mecanum tự đi đến **TRẠM 1 → TRẠM 2 → TRẠM 3**, dừng **15 giây** (theo kế hoạch ngày 1; sửa `wait_s` nếu muốn 20 s) cho công nhân bỏ rác / vải vụn,
 **không dán line**: chỉ dùng **camera** để nhận diện trạm (YOLO), nhận diện mặt sàn trống (gạch đá hoa / bê tông),
 đi theo lộ trình đã dạy, **dừng khi gặp vật cản** và hiển thị trạng thái lên màn hình.
 Động cơ được điều khiển bằng thuật toán **SAC + DOB (thích nghi)** trên Arduino UNO.
@@ -28,7 +28,7 @@ Robot 4 bánh mecanum tự đi đến **TRẠM 1 → TRẠM 2 → TRẠM 3**, d�
 | Nguồn | Pin **LiPo 3S** (11.1 V) + mạch hạ áp **5 V ≥ 3 A** riêng cho Pi (cần bổ sung) |
 | La bàn | GY-271 **QMC5883L** (hoặc HMC5883L) trên **I2C của Pi** – gợi ý hướng & giữ hướng |
 | HMI | Màn hình HDMI/DSI 5"–7" 800×480 gắn Pi (giao diện tiếng Việt có dấu) + LCD 16×2 I2C (tùy chọn) |
-| Thị giác | YOLO11n / YOLOv8n (Ultralytics) xuất **NCNN**, ảnh 320 – lớp: `tram1`, `tram2`, `tram3`, `vat_can`, `nguoi` |
+| Thị giác | **YOLO11n** (Ultralytics) – 1 mô hình chung, lớp `0=tram_1, 1=tram_2, 2=tram_3`, ảnh 416, chạy **`best.onnx` bằng onnxruntime** (không cần torch trên Pi) |
 | Truyền thông | Pi ↔ Arduino: **USB-Serial 115200 8N1, giao thức ASCII** (xem đầu `robot_firmware.ino`) |
 | Chế độ | **Tự động** (lộ trình trạm), **Tay** (bàn phím), **Dạy lộ trình**, **Dừng khẩn** (phần cứng + phần mềm) |
 
@@ -45,7 +45,7 @@ Robot 4 bánh mecanum tự đi đến **TRẠM 1 → TRẠM 2 → TRẠM 3**, d�
 ```mermaid
 flowchart LR
     subgraph PI["Raspberry Pi 4 – Python"]
-        CAM["Camera Module 2"] --> YOLO["YOLO NCNN<br/>trạm + vật cản"]
+        CAM["Camera Module 2"] --> YOLO["YOLO11n ONNX<br/>tram_1/2/3"]
         CAM --> FLOOR["Sàn trống<br/>(gạch / bê tông)"]
         CAM --> ROUTE["Ảnh mốc<br/>lộ trình đã dạy"]
         YOLO & FLOOR & ROUTE --> MIS["Máy trạng thái<br/>+ bộ lái cục bộ"]
@@ -82,9 +82,9 @@ robot_xuong_may/
 │   ├── gpio_io.py           # nút START/STOP, còi
 │   └── simworld.py          # mô phỏng toàn bộ (chạy thử không cần phần cứng)
 ├── firmware/robot_firmware/ # robot_firmware.ino, sac_dob.h, config_gen.h (tự sinh)
-├── training/                # chụp ảnh, chia dữ liệu, huấn luyện, xuất NCNN, thử mô hình
+├── training/                # chụp ảnh, chia theo buổi, huấn luyện, xuất ONNX + metadata, đánh giá
 ├── tools/                   # motor_test.py, sac_dob_sim.py, compass_calibrate.py
-├── tests/                   # 92 kiểm thử tự động (pytest)
+├── tests/                   # 103 kiểm thử tự động (pytest)
 ├── docs/                    # WIRING.md, NAVIGATION.md, SAC_DOB.md, TRAINING.md, ảnh
 └── scripts/                 # install_pi.sh, robot-autostart.desktop
 ```
@@ -115,7 +115,7 @@ Chạy thử **không cần phần cứng** (laptop/Pi): `python main.py --sim` 
 | 9. YOLO | huấn luyện theo `docs/TRAINING.md`, thử `python training/test_model.py` | nhận đúng trạm, ước lượng khoảng cách đúng ±10 % |
 | 10. Sàn | `python main.py`, chế độ tay (M), lái quanh xưởng | không báo vật cản giả; đặt thùng thì thấy chấm đỏ đúng chỗ |
 | 11. Dạy lộ trình (nếu trạm khuất) | M → T → lái tới trạm → T (mỗi chặng) | "Lộ trình đã dạy: 0→1, 1→2, 2→3, 3→1" |
-| 12. Chạy tự động | Enter/G hoặc nút START | đi đủ 3 trạm, chờ 20 s mỗi trạm, dừng khi có người chắn |
+| 12. Chạy tự động | Enter/G hoặc nút START | đi đủ 3 trạm, chờ 15 s mỗi trạm, dừng khi có vật chắn |
 
 ## 6. Vận hành
 
@@ -155,7 +155,7 @@ Chạy thử **không cần phần cứng** (laptop/Pi): `python main.py --sim` 
 | 1 | FOLLOW | START / rời trạm, **có** lộ trình đã dạy cho chặng | bám ảnh mốc, lách vật cản | thấy biển trạm < 2.5 m (3 khung) → 3; hết mốc / mất dấu → 2 |
 | 2 | SEARCH | START / rời trạm, **không** có lộ trình | (xoay về hướng la bàn gợi ý) quay tìm biển trạm | thấy biển 3 khung → 3; quá 30 s → LOST |
 | 3 | APPROACH | thấy biển trạm đích | căn giữa + tiến, giảm tốc từ 1.2 m, lách vật cản | ≤ 0.45 m & lệch tâm ≤ 0.25 (3 khung) → 4; mất dấu 1.5 s → 2 |
-| 4 | WAIT | đã đến trạm | dừng, còi 2 tiếng, đếm ngược 20 s | hết giờ / phím N → trạm kế tiếp (1 hoặc 2) |
+| 4 | WAIT | đã đến trạm | dừng, còi 2 tiếng, đếm ngược 15 s | hết giờ / phím N → trạm kế tiếp (1 hoặc 2) |
 | – | OBSTACLE | vật cản trong làn < 0.8 m (≥ 2 khung) hoặc không còn khe đi | dừng, còi dài | đường trống liên tục 1.5 s → về bước trước |
 
 ## 8. An toàn & liên động
@@ -179,7 +179,8 @@ Chạy thử **không cần phần cứng** (laptop/Pi): `python main.py --sim` 
 | "Mất kết nối Arduino" | cáp USB, Arduino reset, sai cổng | kiểm tra cáp; `ls /dev/ttyACM* /dev/ttyUSB*`; đặt `SERIAL_PORT` |
 | "Firmware Arduino khác config.py" | sửa config chưa nạp lại | `python flash_arduino.py` |
 | "Lỗi camera" | cáp dẹt lỏng, chưa bật camera | `rpicam-hello`; cắm lại cáp đúng chiều |
-| "Chưa có mô hình YOLO" | thiếu `models/best_ncnn_model` | huấn luyện + `training/export_model.py` |
+| "Chưa có mô hình YOLO" | thiếu `models/best.onnx` / `best.metadata.json` | `python training/export_model.py --weights best.pt` |
+| "Mô hình KHÔNG có lớp…" / "Thứ tự lớp sai" | nhóm train dùng tên / thứ tự lớp khác | train lại đúng `0=tram_1, 1=tram_2, 2=tram_3` (robot không cho chạy tự động) |
 | Robot đứng yên dù có lệnh | dừng khẩn chốt; pin yếu; jumper EN chưa tháo | xem flags; nhấn R; kiểm tra pin & dây EN |
 | Bánh quay ngược | đấu ngược động cơ | `MOTOR_INVERT` (dùng `motor_test.py dir`) |
 | Đi ngang bị xoay | lắp sai chiều con lăn mecanum | lắp lại thành chữ X (`docs/WIRING.md` §5) |
@@ -197,7 +198,7 @@ Chạy thử **không cần phần cứng** (laptop/Pi): `python main.py --sim` 
 |---|---|---|
 | Cơ khí | `HALF_WHEELBASE_M`, `HALF_TRACK_M`, `ROBOT_HALF_WIDTH_M` | 0.10, 0.115, 0.17 (ĐO LẠI) |
 | Camera | `CAMERA_HEIGHT_M`, `CAMERA_TILT_DEG` | 0.25 m, 0° (ĐO LẠI) |
-| Trạm | `STATIONS[n]["wait_s"]`, `marker_h_m`, `ROUTE`, `ROUTE_LOOP` | 20 s, 0.20 m, (1,2,3), True |
+| Trạm | `STATIONS[n]["wait_s"]`, `marker_h_m`, `ROUTE`, `ROUTE_LOOP` | 15 s, 0.20 m, (1,2,3), True |
 | Tiếp cận | `ARRIVE_DISTANCE_M`, `V_APPROACH_MAX` | 0.45 m, 0.22 m/s |
 | Vật cản | `OBST_STOP_DISTANCE_M`, `OBST_CLEAR_S`, `NAV_AVOID_ENABLE` | 0.8 m, 1.5 s, True |
 | Sàn | `FLOOR_TYPE`, `FLOOR_LIKE_RATIO`, `FLOOR_MIN_OBST_HEIGHT_M` | "auto", 0.12, 0.08 m |
@@ -207,7 +208,8 @@ Chạy thử **không cần phần cứng** (laptop/Pi): `python main.py --sim` 
 ## 11. Kiểm thử phần mềm
 
 ```bash
-python -m pytest -q        # 92 kiểm thử: máy trạng thái, mô phỏng đủ lộ trình, tránh vật cản, dạy-lặp,
+python -m pytest -q        # 103 kiểm thử: máy trạng thái, mô phỏng đủ lộ trình, tránh vật cản, dạy-lặp,
+                           # bộ nhận diện ONNX, Arduino giả qua cổng ảo, chia dữ liệu theo buổi,
                            # nhận diện sàn (gạch/gạch bông/bê tông), ORB, động học, giao thức,
                            # SAC-DOB và ĐỐI CHIẾU bản C++ firmware với bản Python
 python tools/sac_dob_sim.py   # đồ thị so sánh PI / SAC / SAC+DOB -> docs/img/sac_dob_sim.png
@@ -230,9 +232,10 @@ Firmware đã được biên dịch thử cho ATmega328P (avr-gcc 7.3.0) với m
 * `docs/WIRING.md` – sơ đồ đấu dây, bảng chân, nguồn, an toàn điện
 * `docs/NAVIGATION.md` – dẫn đường bằng camera, nhận diện sàn, lách vật cản, dạy – lặp lộ trình
 * `docs/SAC_DOB.md` – lý thuyết, cài đặt, mô phỏng, quy trình chỉnh SAC + DOB
-* `docs/TRAINING.md` – thiết kế biển trạm, thu thập, gán nhãn, huấn luyện, xuất YOLO
+* `docs/TRAINING.md` – khối số trạm, chụp, gán nhãn, chia theo buổi, huấn luyện, xuất ONNX, đánh giá
+* `docs/HUONG_DAN_NGAY_1.md` – **hướng dẫn từng giờ cho người viết code theo kế hoạch train 3 trạm ngày 1**
 
 **Tham khảo:** Kaufman, Barkana, Sobel – *Direct Adaptive Control Algorithms* (Springer); Ohnishi et al. – *Motion control for
 advanced mechatronics* (DOB, IEEE/ASME T-Mech 1996); Ulrich & Nourbakhsh – *Appearance-Based Obstacle Detection with
 Monocular Color Vision* (AAAI 2000); Chen & Birchfield – *Qualitative Vision-Based Mobile Robot Navigation* (ICRA 2006);
-Borenstein & Koren – *The Vector Field Histogram* (1991); Ultralytics YOLO docs (Raspberry Pi / NCNN).
+Borenstein & Koren – *The Vector Field Histogram* (1991); Ultralytics YOLO docs (export ONNX).

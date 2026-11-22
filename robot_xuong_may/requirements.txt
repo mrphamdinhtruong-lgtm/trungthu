@@ -5,9 +5,9 @@ opencv-python
 pillow
 pyserial
 smbus2
-ultralytics          # YOLOv8 / YOLO11 (kéo theo torch CPU)
-ncnn                 # suy luận mô hình *_ncnn_model nhanh trên CPU ARM
+onnxruntime          # chạy models/best.onnx (KHÔNG cần torch trên Pi)
 matplotlib           # vẽ đồ thị trong tools/
 RPLCD                # (tùy chọn) LCD 16x2 I2C
 gpiozero             # (có sẵn trên Pi OS) nút nhấn / còi
 pytest               # kiểm thử phần mềm
+# ultralytics        # CHỈ cần nếu muốn chạy trực tiếp best.pt / NCNN, hoặc xuất ONNX ngay trên Pi

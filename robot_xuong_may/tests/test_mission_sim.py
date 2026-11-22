@@ -67,7 +67,7 @@ def test_full_route_visits_stations_in_order():
         # dừng gần khoảng cách đặt (chân trạm là vật cản thật nhưng không chặn lúc tiếp cận)
         assert 0.25 < dist < cfg.ARRIVE_DISTANCE_M + 0.15, arrivals
     times = [a[0] for a in arrivals]
-    assert all(t2 - t1 > 20.0 for t1, t2 in zip(times, times[1:]))
+    assert all(t2 - t1 > cfg.STATIONS[1]["wait_s"] for t1, t2 in zip(times, times[1:]))
     assert St.LOST not in states and St.OBSTACLE not in states
 
 

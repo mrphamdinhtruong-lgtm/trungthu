@@ -5,7 +5,7 @@ CHỤP ẢNH LÀM DỮ LIỆU HUẤN LUYỆN (chạy trên Raspberry Pi, đúng 
 
   python training/capture_images.py                    # SPACE: chụp 1 ảnh, A: bật/tắt tự chụp, ESC: thoát
   python training/capture_images.py --interval 1.0     # tự chụp mỗi 1 s (chạy không màn hình được)
-  python training/capture_images.py --prefix tram1     # đặt tiền tố tên file
+  python training/capture_images.py --session sang_A --prefix tram_1   # lưu vào dataset/raw/sang_A/
 
 Ảnh lưu ở dataset/raw/. Gợi ý: mỗi lớp 300-500 ảnh, nhiều khoảng cách (0.4-5 m), nhiều góc,
 nhiều thời điểm ánh sáng, có cả ảnh KHÔNG có biển báo (ảnh nền) ~10%.
@@ -30,10 +30,11 @@ def main():
     ap.add_argument("--out", default=str(PROJECT_DIR / "dataset" / "raw"))
     ap.add_argument("--interval", type=float, default=0.0, help="tự chụp mỗi N giây (0 = chụp tay)")
     ap.add_argument("--prefix", default="img")
+    ap.add_argument("--session", default="", help="tên buổi chụp -> thư mục con (để chia train/val/test theo buổi)")
     ap.add_argument("--count", type=int, default=0, help="dừng sau N ảnh (0 = không giới hạn)")
     args = ap.parse_args()
 
-    out = Path(args.out)
+    out = Path(args.out) / args.session if args.session else Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     cam = Camera(cfg.CAMERA_BACKEND, cfg.CAMERA_INDEX, cfg.FRAME_WIDTH, cfg.FRAME_HEIGHT, cfg.CAMERA_FLIP).start()
     import cv2

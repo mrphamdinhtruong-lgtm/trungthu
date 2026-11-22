@@ -6,7 +6,7 @@ from robot.mission import Mission, St
 from conftest import make_cfg
 
 
-def station_det(cls="tram1", cx=0.5, h=0.2, conf=0.9):
+def station_det(cls="tram_1", cx=0.5, h=0.2, conf=0.9):
     return Detection(cls, conf, cx - h * 0.4, 0.5 - h / 2, cx + h * 0.4, 0.5 + h / 2)
 
 
@@ -39,11 +39,11 @@ def test_search_confirm_approach_arrive_wait_next(cfg):
     assert out.title == "ĐANG DI CHUYỂN ĐẾN TRẠM 1"
     # biển báo trạm KHÁC không được tính
     for _ in range(5):
-        out = m.update(c.tick(), [station_det("tram2")])
+        out = m.update(c.tick(), [station_det("tram_2")])
     assert out.state == St.SEARCH
     # thấy trạm 1 đủ số khung -> tiếp cận
     for _ in range(cfg.CONFIRM_FRAMES):
-        out = m.update(c.tick(), [station_det("tram1", cx=0.7, h=0.1)])
+        out = m.update(c.tick(), [station_det("tram_1", cx=0.7, h=0.1)])
     assert out.state == St.APPROACH
     assert out.wz < 0            # trạm lệch phải -> quay phải (CW)
     assert out.distance > 1.0
@@ -51,16 +51,16 @@ def test_search_confirm_approach_arrive_wait_next(cfg):
     h = 0.1
     while out.state == St.APPROACH and h < 0.9:
         h += 0.03
-        out = m.update(c.tick(), [station_det("tram1", cx=0.5, h=h)])
+        out = m.update(c.tick(), [station_det("tram_1", cx=0.5, h=h)])
     assert out.state == St.WAIT
     assert out.beep == "arrive"
     assert out.title == "ĐÃ ĐẾN TRẠM 1" and not out.drive
     assert m.distance_from_det(station_det(h=h)) <= cfg.ARRIVE_DISTANCE_M
-    # chờ đúng 20 s
+    # chờ đúng thời gian cấu hình (kế hoạch: 15 s)
     t_arrive = c.t
     while out.state == St.WAIT:
         out = m.update(c.tick(), [])
-    assert abs((c.t - t_arrive) - 20.0) < 0.25
+    assert abs((c.t - t_arrive) - cfg.STATIONS[1]["wait_s"]) < 0.25
     assert out.state == St.SEARCH and out.station == 2
     assert out.title == "ĐANG DI CHUYỂN ĐẾN TRẠM 2"
 
@@ -70,10 +70,11 @@ def test_countdown_text(cfg):
     m.update(c.t, [])
     m.start()
     for _ in range(cfg.CONFIRM_FRAMES + cfg.ARRIVE_FRAMES + 2):
-        out = m.update(c.tick(), [station_det("tram1", h=0.6)])
+        out = m.update(c.tick(), [station_det("tram_1", h=0.6)])
     assert out.state == St.WAIT
     out = m.update(c.tick(5.0), [])
-    assert "còn" in out.subtitle and out.countdown is not None and 14 < out.countdown < 16
+    w = cfg.STATIONS[1]["wait_s"] - 5.0
+    assert "còn" in out.subtitle and out.countdown is not None and w - 1 < out.countdown < w + 1
 
 
 def test_obstacle_stops_and_resumes(cfg):
@@ -81,22 +82,22 @@ def test_obstacle_stops_and_resumes(cfg):
     m.update(c.t, [])
     m.start()
     for _ in range(cfg.CONFIRM_FRAMES):
-        out = m.update(c.tick(), [station_det("tram1", h=0.1)])
+        out = m.update(c.tick(), [station_det("tram_1", h=0.1)])
     assert out.state == St.APPROACH and out.vx > 0
     # 1 khung vật cản chưa đủ -> vẫn chạy (chống báo giả)
-    out = m.update(c.tick(), [station_det("tram1", h=0.1), obstacle_det()])
+    out = m.update(c.tick(), [station_det("tram_1", h=0.1), obstacle_det()])
     assert out.state == St.APPROACH
-    out = m.update(c.tick(), [station_det("tram1", h=0.1), obstacle_det()])
+    out = m.update(c.tick(), [station_det("tram_1", h=0.1), obstacle_det()])
     assert out.state == St.OBSTACLE and not out.drive and out.vx == 0
     assert out.title == "GẶP VẬT CẢN – ROBOT DỪNG" and out.beep == "obstacle"
     # vật cản còn đó -> vẫn dừng
     for _ in range(30):
-        out = m.update(c.tick(), [station_det("tram1", h=0.1), obstacle_det()])
+        out = m.update(c.tick(), [station_det("tram_1", h=0.1), obstacle_det()])
     assert out.state == St.OBSTACLE
     # hết vật cản -> chờ OBST_CLEAR_S rồi chạy tiếp
     t_clear = c.t
     while out.state == St.OBSTACLE:
-        out = m.update(c.tick(), [station_det("tram1", h=0.1)])
+        out = m.update(c.tick(), [station_det("tram_1", h=0.1)])
     assert c.t - t_clear >= cfg.OBST_CLEAR_S - 1e-6
     assert out.state == St.APPROACH and out.vx > 0
 
@@ -106,12 +107,12 @@ def test_far_obstacle_and_side_obstacle_ignored(cfg):
     m.update(c.t, [])
     m.start()
     for _ in range(cfg.CONFIRM_FRAMES):
-        m.update(c.tick(), [station_det("tram1", h=0.1)])
+        m.update(c.tick(), [station_det("tram_1", h=0.1)])
     far = obstacle_det(y2=0.62)            # chạm sàn ở xa (~2.3 m)
     side = obstacle_det(y2=0.98, cx=0.05)  # sát mép trái, ngoài hành lang
     assert m.ground_distance(0.62) > cfg.OBST_STOP_DISTANCE_M
     for _ in range(10):
-        out = m.update(c.tick(), [station_det("tram1", h=0.1), far, side])
+        out = m.update(c.tick(), [station_det("tram_1", h=0.1), far, side])
     assert out.state == St.APPROACH
 
 
@@ -120,7 +121,7 @@ def test_lost_target_returns_to_search(cfg):
     m.update(c.t, [])
     m.start()
     for _ in range(cfg.CONFIRM_FRAMES):
-        out = m.update(c.tick(), [station_det("tram1", cx=0.8, h=0.1)])
+        out = m.update(c.tick(), [station_det("tram_1", cx=0.8, h=0.1)])
     assert out.state == St.APPROACH
     out = m.update(c.tick(), [])
     assert out.state == St.APPROACH            # mất dấu ngắn: vẫn giữ
@@ -193,7 +194,7 @@ def test_route_no_loop_done(cfg):
     m.update(c.t, [])
     m.start()
     for _ in range(cfg.CONFIRM_FRAMES + cfg.ARRIVE_FRAMES + 2):
-        out = m.update(c.tick(), [station_det("tram1", h=0.6)])
+        out = m.update(c.tick(), [station_det("tram_1", h=0.6)])
     m.skip_wait()
     out = m.update(c.tick(), [])
     assert out.state == St.DONE

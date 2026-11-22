@@ -11,7 +11,7 @@ Có 3 lớp dẫn đường chạy đồng thời trên Raspberry Pi 4:
 
 ```mermaid
 flowchart TB
-    CAM["Camera Module 2<br/>640×480"] --> YOLO["YOLO NCNN 320<br/>biển trạm, người, vật cản"]
+    CAM["Camera Module 2<br/>640×480"] --> YOLO["YOLO11n ONNX 416<br/>tram_1 / tram_2 / tram_3"]
     CAM --> FLOOR["Sàn trống (160×120)<br/>histogram màu sàn + lọc chiều cao"]
     CAM --> ORB["Ảnh mốc ORB<br/>(nửa trên ảnh)"]
     ENC["Encoder 4 bánh<br/>(Arduino)"] --> ODO["Odometry"]
@@ -33,7 +33,7 @@ flowchart TB
                       └──► SEARCH: quay tìm biển B ──► APPROACH: tiến tới biển B (YOLO)
                                                        │  khoảng cách ≤ 0.45 m & đã căn giữa
                                                        ▼
-                                                     WAIT 20 s ──► trạm kế tiếp
+                                                     WAIT 15 s ──► trạm kế tiếp
  Suốt quá trình: vật cản trong làn < 0.8 m ──► OBSTACLE (dừng, hiển thị "GẶP VẬT CẢN")
                  vật cản ở xa hơn         ──► lách theo khe trống (mecanum đi chéo)
 ```

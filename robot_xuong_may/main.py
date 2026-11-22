@@ -16,6 +16,9 @@ Chạy:
   python main.py --auto-start    # tự chạy lộ trình ngay khi khởi động
   python main.py --sim           # mô phỏng toàn bộ trên laptop (không cần phần cứng)
   python main.py --fake-link     # camera + YOLO thật, Arduino giả (thử nhận diện)
+  python main.py --fake-link --video thu.mp4      # chạy bằng video nhóm train gửi
+  python main.py --fake-link --images anh_test/ --no-floor   # chạy bằng thư mục ảnh (trình chiếu)
+  python main.py --port /dev/pts/5                # nối Arduino giả lập (tools/fake_arduino.py)
   python main.py --no-gui        # không màn hình (chạy qua SSH)
 
 Phím (cửa sổ giao diện):
@@ -67,7 +70,11 @@ def parse_args():
     ap.add_argument("--port", default=None, help="cổng serial Arduino (mặc định theo config)")
     ap.add_argument("--model", default=None, help="đường dẫn mô hình YOLO")
     ap.add_argument("--video", default=None, help="dùng file video thay camera (thử nghiệm)")
+    ap.add_argument("--images", default=None, help="dùng thư mục ảnh thay camera (thử nghiệm)")
+    ap.add_argument("--fps", type=float, default=2.0, help="tốc độ trình chiếu khi dùng --images")
     ap.add_argument("--no-compass", action="store_true", help="tắt la bàn")
+    ap.add_argument("--no-floor", action="store_true",
+                    help="tắt nhận diện sàn (khi thử bằng ảnh/video KHÔNG quay từ camera robot)")
     ap.add_argument("-v", "--verbose", action="store_true")
     return ap.parse_args()
 
@@ -83,6 +90,7 @@ class RobotApp:
         self._teach_leg = None
         self._learn_floor = False
         self._info_msg = ("", 0.0)
+        self.model_ok = True                       # mô hình có đủ / đúng thứ tự lớp trạm
         self.gpio = None
         self.compass = None
         self.running = True
@@ -120,20 +128,29 @@ class RobotApp:
             # --- Camera ---
             from robot.camera import Camera
             self.camera = Camera(cfg.CAMERA_BACKEND, cfg.CAMERA_INDEX, cfg.FRAME_WIDTH, cfg.FRAME_HEIGHT,
-                                 cfg.CAMERA_FLIP, video_path=a.video).start()
+                                 cfg.CAMERA_FLIP, video_path=a.images or a.video, image_fps=a.fps).start()
             frame = self._wait_first_frame()
             if frame is None:
                 log.error("Camera chưa có hình ảnh sau 5 s")
             # --- YOLO ---
-            from robot.detector import NullDetector, YoloDetector
+            from robot.detector import NullDetector, check_classes, create_detector
             try:
-                self.detector = YoloDetector(a.model or cfg.MODEL_PATH, cfg.YOLO_IMGSZ, cfg.YOLO_CONF, cfg.YOLO_IOU)
+                self.detector = create_detector(a.model or cfg.MODEL_PATH, cfg.YOLO_IMGSZ, cfg.YOLO_CONF,
+                                                cfg.YOLO_IOU)
+                errors, notes = check_classes(self.detector.names, cfg)
+                for e in errors:                      # sai tên / thứ tự lớp -> không cho chạy tự động
+                    log.error("Kiểm tra lớp: %s", e)
+                    self.warnings.append(e)
+                for n_ in notes:
+                    log.warning("Kiểm tra lớp: %s", n_)
+                self.model_ok = not errors
                 if frame is not None:
                     self.detector.warmup(frame)
             except Exception as exc:
                 log.error("YOLO: %s", exc)
                 self.warnings.append("Chưa có mô hình YOLO – chỉ chạy được chế độ tay")
                 self.detector = NullDetector()
+                self.model_ok = False
             # --- La bàn ---
             if cfg.COMPASS_ENABLE and not a.no_compass:
                 try:
@@ -143,7 +160,7 @@ class RobotApp:
                     log.warning("Không dùng được la bàn: %s", exc)
                     self.compass = None
             # --- Dẫn đường bằng camera: sàn trống + lộ trình đã dạy ---
-            if cfg.FLOOR_ENABLE:
+            if cfg.FLOOR_ENABLE and not a.no_floor:
                 from robot.floor import FloorDetector
                 self.floor = FloorDetector(cfg)
             if cfg.ROUTE_ENABLE:
@@ -165,7 +182,7 @@ class RobotApp:
         self.display = Display(cfg, gui=not a.no_gui and cfg.DISPLAY_GUI,
                                fullscreen=a.fullscreen or cfg.DISPLAY_FULLSCREEN, lcd=cfg.LCD1602_ENABLE)
         self.link.set_controller(cfg.CONTROLLER_MODE)
-        if a.auto_start:
+        if a.auto_start and self.model_ok:
             self.mission.start()
 
     def _wait_first_frame(self, timeout: float = 5.0):
@@ -216,7 +233,10 @@ class RobotApp:
         if k == 27:                                  # ESC
             self.running = False
         elif k in (13, 10) or ch == "g":
-            m.start()
+            if not self.model_ok:
+                self._flash("Mô hình YOLO thiếu / sai lớp trạm – không chạy tự động được (xem log)")
+            else:
+                m.start()
         elif ch == "p":
             m.pause()
         elif ch == "m":
@@ -363,6 +383,7 @@ class RobotApp:
         info = {"vbat": tel.vbat if tel.vbat > 5.0 else None, "yaw": yaw, "rpm": tel.rpm,
                 "ctrl": MODE_NAMES.get(tel.mode, "?"), "fps": self._fps,
                 "yolo_ms": getattr(self.detector, "last_ms", 0.0), "warnings": warnings,
+                "model": f"{getattr(self.detector, 'version', '?')} ({getattr(self.detector, 'backend', '?')})",
                 "free": free, "floor_enabled": cfg.FLOOR_ENABLE,
                 "legs": self.routes.legs() if self.routes is not None else None}
         self.display.render(frame if cam_ok else None, dets, out, info)

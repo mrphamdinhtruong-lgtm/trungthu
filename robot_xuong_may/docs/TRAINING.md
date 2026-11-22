@@ -1,100 +1,87 @@
-# HUẤN LUYỆN YOLO NHẬN DIỆN TRẠM & VẬT CẢN
+# HUẤN LUYỆN YOLO NHẬN DIỆN 3 TRẠM (theo kế hoạch train ngày 1)
 
-## 1. Lớp đối tượng (`training/data.yaml`)
+> Hướng dẫn từng giờ cho người viết code: `docs/HUONG_DAN_NGAY_1.md`.
 
-| ID | Lớp | Ý nghĩa | Dùng trong robot |
-|---|---|---|---|
-| 0 | `tram1` | Biển báo TRẠM 1 | đích đến, ước lượng khoảng cách |
-| 1 | `tram2` | Biển báo TRẠM 2 | |
-| 2 | `tram3` | Biển báo TRẠM 3 | |
-| 3 | `vat_can` | Thùng, xe đẩy, cuộn vải, ghế, hộp... trên đường đi | dừng khi gần |
-| 4 | `nguoi` | Người đứng / đi trên đường | dừng khi gần |
+## 1. Quyết định đã chốt
 
-Thêm trạm: thêm lớp trong `data.yaml`, khai báo trong `STATIONS` và `ROUTE` của `robot/config.py`.
-
-## 2. Thiết kế biển báo trạm (rất quan trọng cho độ chính xác)
-
-* Kích thước gợi ý **20 × 20 cm** (đúng với `marker_h_m = 0.20`), in giấy mờ (không bóng) dán lên tấm fomex.
-* Mỗi trạm **khác nhau cả số, màu và hình**: TRẠM 1 – nền xanh dương số "1" tròn; TRẠM 2 – nền xanh lá số "2" tam giác;
-  TRẠM 3 – nền đỏ số "3" vuông. YOLO phân biệt rất tốt khi khác cả màu + hình.
-* Treo **ngang tầm camera**, mặt biển quay về hướng robot đi tới; mỗi trạm phải **nhìn thấy được từ trạm trước**
-  (nếu bị khuất, thêm 1 biển "trạm trung gian" với `wait_s = 0` vào `ROUTE`).
-
-## 3. Thu thập ảnh (trên Pi, bằng chính camera của robot)
-
-```bash
-python training/capture_images.py --prefix tram1            # SPACE chụp, A tự chụp
-python training/capture_images.py --interval 1 --prefix nen # tự chụp mỗi 1 s khi đẩy robot đi quanh xưởng
-```
-
-| Yêu cầu | Số lượng gợi ý |
+| Hạng mục | Chốt |
 |---|---|
-| Mỗi lớp trạm | 300–500 ảnh: khoảng cách 0.3–6 m, lệch trái/phải, nghiêng, bị che một phần |
-| `vat_can`, `nguoi` | 300–600 ảnh: nhiều loại vật / người, nhiều khoảng cách, đặc biệt **ở gần** |
-| Ảnh nền (không có gì) | ~10 % tổng số ảnh – giảm báo giả |
-| Ánh sáng | sáng / tối / ngược sáng / đèn huỳnh quang nhấp nháy |
+| Lớp (đúng THỨ TỰ) | `0 = tram_1`, `1 = tram_2`, `2 = tram_3` – trùng `MODEL_CLASSES` trong `robot/config.py` |
+| Mô hình | **MỘT** mô hình YOLO11n Detect chung cho cả 3 trạm (không tách 3 mô hình) |
+| Huấn luyện | 50 epochs, ảnh 416, batch Auto |
+| Bàn giao | `best.pt` + `args.yaml` + `results.csv` + tên phiên bản (vd `tram3_v1`) |
+| Robot dùng | `models/best.onnx` + `models/best.metadata.json` (xuất bằng `training/export_model.py`) |
 
-## 4. Gán nhãn
+Mô hình 3 lớp **không có** lớp người / vật cản → robot phát hiện vật cản bằng **nhận diện sàn** (`docs/NAVIGATION.md`).
+Muốn YOLO nhận cả người / vật cản: thêm lớp `3: vat_can`, `4: nguoi` vào `training/data.yaml` và `MODEL_CLASSES`, train lại.
 
-Chọn một công cụ, **xuất định dạng YOLO** (mỗi ảnh một file `.txt`: `lớp cx cy w h` chuẩn hóa):
-* **Roboflow** (web, dễ nhất – xuất "YOLOv8" là dùng được ngay với `data.yaml`),
-* **CVAT** / **Label Studio** / **LabelImg**.
+## 2. Khối số / biển trạm
 
-Quy tắc: khung **ôm sát** biển báo / vật; vật bị cắt ở mép ảnh vẫn gán nhãn; đúng thứ tự lớp như bảng trên.
-**Không** gán nhãn `vat_can` cho thùng rác / bàn **của chính trạm** (nếu không robot sẽ dừng trước trạm vì "gặp vật cản").
+* Mỗi trạm khác nhau cả **số, màu và hình** → YOLO phân biệt tốt, ít nhầm trạm.
+* Đo **chiều cao thật** của khối (m) → `STATIONS[n]["marker_h_m"]` (dùng ước lượng khoảng cách, quyết định chỗ dừng).
+* Đặt khối **ngang tầm camera robot**, mặt số quay về hướng robot đi tới.
 
-Chia train/val (nếu công cụ chưa chia):
+## 3. Chụp ảnh
+
+* Ưu tiên chụp **bằng chính camera robot ở đúng độ cao** (`python training/capture_images.py --session <buoi>`):
+  ảnh camera điện thoại / camera ngoài khác màu sắc, góc rộng, độ nét → mô hình có thể kém khi chạy trên robot.
+  Nếu dùng camera ngoài: chụp ở độ cao 20–30 cm như camera robot, khung hình 4:3, và **thêm ít nhất 30 % ảnh từ camera robot**.
+* Mỗi **buổi** chụp (một chỗ / một khung giờ / một người) để **một thư mục riêng** – dùng để chia train/val/test theo buổi.
+* Mỗi trạm 300–500 ảnh: khoảng cách 0.3–6 m, lệch trái/phải, nghiêng, bị che một phần, ánh sáng khác nhau;
+  ~10 % ảnh nền không có khối nào.
+
 ```bash
-python training/split_dataset.py --src dataset/labeled --val 0.2
+python training/capture_images.py --session A_sang --prefix tram_1   # -> dataset/raw/A_sang/
+python training/capture_images.py --session B_chieu --interval 1      # tự chụp mỗi 1 s
 ```
 
-## 5. Huấn luyện (laptop có GPU hoặc Google Colab – không train trên Pi 4)
+## 4. Gán nhãn (định dạng YOLO)
 
+* Khung **ôm sát** khối số; khối bị cắt ở mép ảnh vẫn gán; đúng mã lớp 0/1/2.
+* **Không** khoanh thùng rác / bàn của trạm.
+* Công cụ: Roboflow / Ultralytics Platform / CVAT / Label Studio – **xuất định dạng YOLO** (mỗi ảnh một `.txt`: `lớp cx cy w h`).
+
+## 5. Gộp & chia dữ liệu THEO BUỔI
+
+```bash
+# dataset/labeled/<buổi>/*.jpg + *.txt  (phần A/B/C của 3 người, mỗi buổi 1 thư mục con)
+python training/split_dataset.py --src dataset/labeled --val 0.2 --test 0.1
+```
+Script báo: số đối tượng mỗi lớp trong từng tập, tập thiếu lớp, dòng nhãn sai mã lớp / sai tọa độ,
+**ảnh val/test gần trùng ảnh train**. Mỗi buổi chỉ nằm trong 1 tập.
+
+## 6. Huấn luyện
+
+Trên cloud (nhóm train) hoặc máy có GPU / Colab:
 ```bash
 pip install -r requirements-train.txt
-python training/train_yolo.py --epochs 120 --imgsz 320          # YOLO11n
-python training/train_yolo.py --model yolov8n.pt --imgsz 320     # hoặc YOLOv8n
+python training/train_yolo.py                 # YOLO11n, 50 epochs, 416, batch Auto (theo kế hoạch)
 ```
+Tăng cường dữ liệu đã chọn sẵn: **tắt lật ngang** (số bị lật sai hình), xoay nhẹ, đổi sáng/màu.
+Kết quả: `runs/detect/tram3/weights/best.pt`, `args.yaml`, `results.csv`, `confusion_matrix.png`.
 
-**Google Colab** (Runtime → GPU):
-```python
-!git clone <địa chỉ repo của bạn>
-%cd trungthu/robot_xuong_may
-!pip install -q ultralytics
-# tải dataset/ lên (zip) rồi giải nén vào robot_xuong_may/dataset
-!python training/train_yolo.py --epochs 120 --imgsz 320 --export
-```
-
-Cấu hình tăng cường dữ liệu đã chọn sẵn cho biển báo có chữ số: **tắt lật ngang** (`fliplr=0`), xoay nhẹ, đổi độ sáng/màu.
-Kết quả cho báo cáo: `runs/detect/tram_xuong_may/` (results.png, confusion_matrix.png, PR_curve.png).
-Mục tiêu: mAP50 ≥ 0.90 cho các lớp trạm.
-
-## 6. Xuất mô hình cho Raspberry Pi 4
+## 7. Nhận `.pt` → xuất ONNX cho robot
 
 ```bash
-python training/export_model.py --weights runs/detect/tram_xuong_may/weights/best.pt --imgsz 320
-# -> models/best_ncnn_model/   (chép thư mục models/ sang Pi nếu xuất trên laptop)
+python training/export_model.py --weights best.pt --version tram3_v1 --args args.yaml --results results.csv
+# -> models/best.onnx, models/best.metadata.json, models/best.pt
+python training/export_model.py --check models/best.onnx     # kiểm tra lại (lớp, mã băm, chạy thử)
 ```
-`robot/config.py`: `MODEL_PATH = "models/best_ncnn_model"`, `YOLO_IMGSZ = 320`.
+Sai tên / thứ tự lớp → script **dừng, không xuất**. Chép thư mục `models/` sang Pi; trên Pi chỉ cần `onnxruntime`.
 
-NCNN là định dạng Ultralytics khuyến nghị cho CPU ARM của Pi. Tốc độ thực tế phụ thuộc mô hình và nhiệt độ CPU –
-**đo trên robot**:
+## 8. Đánh giá bằng đúng code robot
+
 ```bash
-python training/test_model.py                 # camera trực tiếp, hiện FPS + khoảng cách ước lượng
-python training/test_model.py --source dataset/images/val
+python training/test_model.py --eval dataset --split test       # đúng / nhầm trạm / bỏ sót / báo giả theo từng trạm
+python training/test_model.py --source video_moi.mp4            # xem trực tiếp, FPS, khoảng cách ước lượng
 ```
-Nếu FPS thấp: giữ `imgsz 320`, dùng bản nano (`n`), gắn tản nhiệt + quạt cho Pi (CPU bị hạ xung khi > 80 °C).
+Danh sách lỗi ghi vào `logs/eval_test_*.csv` → gửi nhóm train để chụp bổ sung / sửa nhãn.
 
-## 7. Hiệu chỉnh sau khi có mô hình
+## 9. Hiệu chỉnh
 
 | Thông số (`robot/config.py`) | Cách chỉnh |
 |---|---|
-| `marker_h_m` | chiều cao thật của biển báo |
+| `marker_h_m` | chiều cao thật của khối số |
 | `ARRIVE_DISTANCE_M` | đặt robot đúng chỗ muốn dừng, đọc "Khoảng cách" trên màn hình |
 | `STATION_CONF`, `CONFIRM_FRAMES` | báo giả nhiều → tăng; khó nhận ra → giảm |
-| `OBST_STOP_DISTANCE_M`, `OBST_CORRIDOR` | khoảng cách & bề rộng vùng nguy hiểm phía trước |
-| `CAMERA_HEIGHT_M`, `CAMERA_TILT_DEG` | đo thực tế – quyết định độ chính xác khoảng cách vật cản |
-
-**Giới hạn cần ghi trong báo cáo:** camera + YOLO chỉ phát hiện được loại vật **đã có trong dữ liệu huấn luyện**;
-vật lạ, vật trong suốt, vật quá thấp sát sàn có thể không được nhận ra. Robot chỉ "nhìn" phía trước,
-không thấy phía sau / hai bên (vì vậy mặc định không lùi: `DEPART_REVERSE_S = 0`).
+| `YOLO_IMGSZ` | ONNX tự dùng kích thước lúc xuất; Pi chậm → xuất lại `--imgsz 320` |
