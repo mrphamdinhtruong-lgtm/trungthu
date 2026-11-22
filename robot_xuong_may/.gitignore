@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+logs/
+runs/
+dataset/
+tools/bin/
+compass_cal.json
+*.engine

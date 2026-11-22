@@ -1,0 +1,9 @@
+# Tự chạy giao diện robot khi Pi khởi động vào màn hình desktop.
+# Cài:  mkdir -p ~/.config/autostart && cp scripts/robot-autostart.desktop ~/.config/autostart/
+# (sửa đường dẫn /home/pi/robot_xuong_may cho đúng thư mục của bạn)
+[Desktop Entry]
+Type=Application
+Name=Robot thu gom rac
+Exec=bash -c "sleep 8; cd /home/pi/robot_xuong_may && .venv/bin/python main.py --fullscreen"
+Terminal=false
+X-GNOME-Autostart-enabled=true

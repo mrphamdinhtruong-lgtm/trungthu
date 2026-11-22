@@ -1,0 +1,14 @@
+# =====================================================================
+#  Bộ dữ liệu YOLO – Robot thu gom rác xưởng may
+#  Tên lớp phải trùng với robot/config.py (STATIONS[...]["class"], OBSTACLE_CLASSES)
+# =====================================================================
+path: ../dataset          # thư mục gốc dữ liệu (tính từ file này)
+train: images/train
+val: images/val
+
+names:
+  0: tram1      # biển báo TRẠM 1
+  1: tram2      # biển báo TRẠM 2
+  2: tram3      # biển báo TRẠM 3
+  3: vat_can    # vật cản: thùng, xe đẩy, cuộn vải, ghế, hộp...
+  4: nguoi      # người (công nhân) đứng / đi trên đường robot

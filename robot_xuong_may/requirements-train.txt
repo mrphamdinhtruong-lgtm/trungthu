@@ -1,0 +1,3 @@
+# ---- Huấn luyện YOLO trên laptop có GPU / Google Colab ----
+ultralytics
+matplotlib

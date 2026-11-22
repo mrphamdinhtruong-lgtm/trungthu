@@ -1,0 +1,13 @@
+# ---- Chạy trên Raspberry Pi 4 (Raspberry Pi OS Bookworm 64-bit, Python 3.11) ----
+# picamera2 cài bằng apt (python3-picamera2) -> tạo venv với --system-site-packages
+numpy
+opencv-python
+pillow
+pyserial
+smbus2
+ultralytics          # YOLOv8 / YOLO11 (kéo theo torch CPU)
+ncnn                 # suy luận mô hình *_ncnn_model nhanh trên CPU ARM
+matplotlib           # vẽ đồ thị trong tools/
+RPLCD                # (tùy chọn) LCD 16x2 I2C
+gpiozero             # (có sẵn trên Pi OS) nút nhấn / còi
+pytest               # kiểm thử phần mềm
