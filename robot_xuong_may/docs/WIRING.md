@@ -80,7 +80,11 @@
 
 * MPU-6050 = con quay 3 trục + gia tốc kế, **không có từ kế** → đo **góc quay tương đối** (0° = hướng lúc bật / mở main.py),
   không bị khung sắt nhà xưởng làm lệch. Firmware tích phân tốc độ quay trục Z ở 50 Hz, tự bù độ trôi khi robot đứng yên.
-* Gắn module **nằm ngang** (chữ in hướng lên), cố định chắc, gần tâm robot; dây I2C ≤ 30 cm, xoắn cặp SDA/SCL với GND nếu được.
+* Gắn module **ở giữa robot** (gần tâm quay, giữa 4 bánh), **nằm ngang** (chữ in hướng lên), cố định chắc; cách L298N /
+  động cơ ≥ 8–10 cm; dây I2C ≤ 30 cm, đi riêng không bó chung dây động cơ. Lệch tâm vài cm không sao (con quay đo tốc độ quay).
+
+![Gợi ý bố trí MPU-6050 trên robot](img/so_do_bo_tri_mpu.png)
+
 * Bật nguồn / mở `main.py`: để robot **đứng yên ~1 s** (Arduino đo độ lệch 0 của con quay).
 * Nếu bo có đầu cắm trắng 4 chân thì vẫn nên hàn/cắm vào **hàng chân có in chữ** để chắc chắn đúng thứ tự VCC-GND-SCL-SDA.
 * Kiểm tra: `python tools/motor_test.py imu` → xoay robot trái 90° bằng tay → góc phải **tăng** ≈ 90.
