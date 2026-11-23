@@ -407,7 +407,7 @@ class RobotApp:
                 "ctrl": MODE_NAMES.get(tel.mode, "?"), "fps": self._fps,
                 "yolo_ms": getattr(self.detector, "last_ms", 0.0), "warnings": warnings,
                 "model": f"{getattr(self.detector, 'version', '?')} ({getattr(self.detector, 'backend', '?')})",
-                "free": free, "floor_enabled": cfg.FLOOR_ENABLE,
+                "free": free, "floor_enabled": self.floor is not None or self.world is not None,
                 "legs": self.routes.legs() if self.routes is not None else None}
         self.display.render(frame if cam_ok else None, dets, out, info)
         self._handle_key(self.display.poll_key(1), now)

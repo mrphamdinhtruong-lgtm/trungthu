@@ -299,6 +299,8 @@ class Display:
                               (165, 214, 167)))
             else:
                 lines.append(("Sàn: CHƯA HỌC – nhấn F khi phía trước trống", (255, 183, 77)))
+        else:
+            lines.append(("Sàn: TẮT (chạy với --no-floor)", (200, 200, 200)))
         if info.get("legs") is not None:
             legs = info["legs"]
             lines.append(("Lộ trình đã dạy: " + (", ".join(f"{a}→{b}" for a, b in legs) if legs else "chưa có"),
