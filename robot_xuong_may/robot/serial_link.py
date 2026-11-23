@@ -176,9 +176,15 @@ def parse_line(line: str):
 class SerialLink:
     """Kết nối thật tới Arduino. Có luồng nền đọc telemetry."""
 
+    RECONNECT_S = 2.0                      # mất cáp -> thử mở lại cổng mỗi 2 s
+
     def __init__(self, port: str = "auto", baud: int = 115200):
         self.port = port
+        self._port_spec = port               # "auto" -> lúc nối lại dò lại cổng (số COM có thể đổi)
         self.baud = baud
+        self.broken = False                  # True = đang mất kết nối USB, chờ tự nối lại
+        self.reconnects = 0
+        self._next_retry = 0.0
         self.ser = None
         self.telemetry = Telemetry()
         self.info: Optional[Dict] = None
@@ -238,14 +244,53 @@ class SerialLink:
         self.ser = None
 
     # ----------------------------------------------------------------
+    def _io_error(self, what: str, exc: Exception) -> None:
+        """Lỗi đọc/ghi = cáp USB rút / chập chờn: báo 1 lần (không in 20 lần/giây), rồi tự nối lại."""
+        if not self.broken:
+            log.error("Mất kết nối Arduino khi %s (%s) – kiểm tra cáp USB; đang tự kết nối lại mỗi %.0f s...",
+                      what, exc, self.RECONNECT_S)
+            self.broken = True
+            self._next_retry = time.monotonic() + self.RECONNECT_S
+
+    def _try_reconnect(self) -> None:
+        import serial  # pyserial
+        if time.monotonic() < self._next_retry:
+            return
+        self._next_retry = time.monotonic() + self.RECONNECT_S
+        with self._lock:
+            if self.ser is not None:
+                try:
+                    self.ser.close()
+                except Exception:
+                    pass
+                self.ser = None
+            port = self.port
+            if not self._port_spec or self._port_spec == "auto":
+                port = find_arduino_port() or self.port
+            try:
+                self.ser = serial.Serial(port, self.baud, timeout=0.05, write_timeout=0.5)
+            except (serial.SerialException, OSError, ValueError):
+                self.ser = None
+                return
+            self.port = port
+            self.broken = False
+            self.reconnects += 1
+        log.warning("Đã kết nối lại Arduino ở %s (lần %d). Robot vẫn DỪNG – khắc phục xong nhấn R để chạy lại",
+                    port, self.reconnects)
+
     def _reader(self) -> None:
         buf = b""
         while not self._stop.is_set():
+            if self.broken or self.ser is None:
+                if self.broken:
+                    self._try_reconnect()
+                time.sleep(0.1)
+                buf = b""
+                continue
             try:
                 chunk = self.ser.read(256)
-            except Exception as exc:  # cáp bị rút...
-                log.error("Lỗi đọc serial: %s", exc)
-                time.sleep(0.5)
+            except Exception as exc:  # cáp bị rút / chập chờn
+                self._io_error("đọc", exc)
                 continue
             if not chunk:
                 continue
@@ -281,13 +326,17 @@ class SerialLink:
                 log.warning("Arduino báo lỗi: %s", ",".join(data))
 
     def _write(self, text: str) -> None:
-        if self.ser is None:
+        if self.ser is None or self.broken:          # đang mất kết nối -> bỏ qua, luồng đọc tự nối lại
             return
+        err = None
         with self._lock:
             try:
-                self.ser.write(text.encode("ascii"))
+                if self.ser is not None:
+                    self.ser.write(text.encode("ascii"))
             except Exception as exc:
-                log.error("Lỗi ghi serial: %s", exc)
+                err = exc
+        if err is not None:
+            self._io_error("ghi", err)
 
     # ----------------------------------------------------------------
     # API lệnh
