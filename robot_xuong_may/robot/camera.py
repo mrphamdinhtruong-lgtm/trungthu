@@ -27,6 +27,71 @@ RECONNECT_AFTER = 20          # số lần đọc lỗi liên tiếp trước kh
 RECONNECT_WAIT_S = 1.0
 
 
+def _webcam_apis():
+    """Thứ tự trình điều khiển webcam theo hệ điều hành (Windows: DirectShow mở nhanh, nhận cả webcam USB rời)."""
+    import sys
+    import cv2
+    if sys.platform.startswith("win"):
+        return [getattr(cv2, "CAP_DSHOW", None), getattr(cv2, "CAP_MSMF", None), None]
+    if sys.platform.startswith("linux"):
+        return [getattr(cv2, "CAP_V4L2", None), None]
+    return [None]
+
+
+class _QuietCV:
+    """Tắt tạm các dòng WARN/ERROR của OpenCV khi dò camera không tồn tại (làm người mới tưởng lỗi)."""
+
+    def __enter__(self):
+        import cv2
+        self._lg = getattr(getattr(cv2, "utils", None), "logging", None)
+        self._old = None
+        if self._lg is not None:
+            try:
+                self._old = self._lg.getLogLevel()
+                self._lg.setLogLevel(self._lg.LOG_LEVEL_SILENT)
+            except Exception:
+                self._lg = None
+        return self
+
+    def __exit__(self, *exc):
+        if self._lg is not None and self._old is not None:
+            try:
+                self._lg.setLogLevel(self._old)
+            except Exception:
+                pass
+        return False
+
+
+def open_webcam(index: int):
+    """Mở webcam số `index` (0 = camera đầu tiên). Trả về cv2.VideoCapture (có thể chưa mở được)."""
+    import cv2
+    cap = None
+    with _QuietCV():
+        for api in _webcam_apis():
+            cap = cv2.VideoCapture(index) if api is None else cv2.VideoCapture(index, api)
+            if cap.isOpened():
+                return cap
+            cap.release()
+    return cap
+
+
+def list_webcams(max_index: int = 5):
+    """Dò các webcam đang cắm: [(số thứ tự, rộng, cao)]. Laptop: 0 thường là camera liền máy, 1 là camera USB rời."""
+    found = []
+    for i in range(max_index):
+        cap = open_webcam(i)
+        try:
+            if cap is not None and cap.isOpened():
+                with _QuietCV():
+                    ok, frame = cap.read()
+                if ok and frame is not None:
+                    found.append((i, frame.shape[1], frame.shape[0]))
+        finally:
+            if cap is not None:
+                cap.release()
+    return found
+
+
 class Camera:
     def __init__(self, backend: str = "auto", index: int = 0, width: int = 640, height: int = 480,
                  flip: str = "", video_path: Optional[str] = None, image_fps: float = 2.0):
@@ -98,9 +163,7 @@ class Camera:
     def _open_opencv(self, source) -> None:
         import cv2
         if isinstance(source, int):
-            cap = cv2.VideoCapture(source, cv2.CAP_V4L2) if hasattr(cv2, "CAP_V4L2") else cv2.VideoCapture(source)
-            if not cap.isOpened():
-                cap = cv2.VideoCapture(source)
+            cap = open_webcam(source)
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)

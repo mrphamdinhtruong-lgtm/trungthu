@@ -71,3 +71,13 @@ def test_cli_help_prints_vietnamese_on_windows_codepage(script):
     r = run(ROOT / script, "--help")
     assert "UnicodeEncodeError" not in r.stderr, r.stderr
     assert r.returncode == 0, r.stderr[-500:]
+
+
+def test_camera_list_and_wrong_index_are_friendly():
+    pytest.importorskip("cv2")
+    r = run(EX / "01_xem_camera.py", "--list")
+    assert r.returncode == 0 and "Traceback" not in r.stderr
+    assert "webcam" in r.stdout
+    r = run(EX / "01_xem_camera.py", "--camera", "9", "--frames", "1")
+    assert r.returncode != 0 and "Traceback" not in r.stderr, r.stderr[-600:]
+    assert "--list" in r.stderr

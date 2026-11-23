@@ -71,6 +71,8 @@ def parse_args():
     ap.add_argument("--model", default=None, help="đường dẫn mô hình YOLO")
     ap.add_argument("--video", default=None, help="dùng file video thay camera (thử nghiệm)")
     ap.add_argument("--images", default=None, help="dùng thư mục ảnh thay camera (thử nghiệm)")
+    ap.add_argument("--camera", type=int, default=None,
+                    help="số webcam USB (0, 1, 2...) thay CAMERA_INDEX – xem: python examples/01_xem_camera.py --list")
     ap.add_argument("--fps", type=float, default=2.0, help="tốc độ trình chiếu khi dùng --images")
     ap.add_argument("--no-compass", action="store_true", help="không dùng góc quay (con quay MPU-6050 / la bàn)")
     ap.add_argument("--no-floor", action="store_true",
@@ -132,8 +134,14 @@ class RobotApp:
                     raise SystemExit(f"{exc}\n(Thử không cần Arduino: python main.py --sim)")
             # --- Camera ---
             from robot.camera import Camera
-            self.camera = Camera(cfg.CAMERA_BACKEND, cfg.CAMERA_INDEX, cfg.FRAME_WIDTH, cfg.FRAME_HEIGHT,
-                                 cfg.CAMERA_FLIP, video_path=a.images or a.video, image_fps=a.fps).start()
+            backend = "opencv" if a.camera is not None else cfg.CAMERA_BACKEND
+            index = cfg.CAMERA_INDEX if a.camera is None else a.camera
+            try:
+                self.camera = Camera(backend, index, cfg.FRAME_WIDTH, cfg.FRAME_HEIGHT,
+                                     cfg.CAMERA_FLIP, video_path=a.images or a.video, image_fps=a.fps).start()
+            except RuntimeError as exc:
+                self.link.close()
+                raise SystemExit(f"{exc}\n  -> Xem các webcam đang có: python examples/01_xem_camera.py --list  (rồi dùng --camera <số>)")
             frame = self._wait_first_frame()
             if frame is None:
                 log.error("Camera chưa có hình ảnh sau 5 s")

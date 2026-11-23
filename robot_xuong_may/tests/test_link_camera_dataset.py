@@ -53,7 +53,9 @@ def test_camera_from_image_folder_and_video(tmp_path):
     for i in range(3):
         cv2.imwrite(str(tmp_path / f"a_{i}.jpg"), np.full((300, 400, 3), 40 * i, np.uint8))
     cam = Camera(width=640, height=480, video_path=str(tmp_path), image_fps=20).start()
-    time.sleep(0.5)
+    t0 = time.monotonic()
+    while cam.frame_count < 3 and time.monotonic() - t0 < 5.0:      # chờ theo điều kiện, không theo giờ cố định
+        time.sleep(0.05)
     f, t = cam.read()
     cam.stop()
     assert f is not None and f.shape == (480, 640, 3) and cam.frame_count >= 3
@@ -63,7 +65,9 @@ def test_camera_from_image_folder_and_video(tmp_path):
         vw.write(np.full((480, 640, 3), 30 * i, np.uint8))
     vw.release()
     cam = Camera(video_path=str(vid)).start()
-    time.sleep(1.2)
+    t0 = time.monotonic()
+    while cam.frame_count <= 5 and time.monotonic() - t0 < 6.0:
+        time.sleep(0.05)
     f, _ = cam.read()
     n = cam.frame_count
     cam.stop()

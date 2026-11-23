@@ -102,11 +102,12 @@ PI_KI = 8.0
 # [D] CAMERA & YOLO (Raspberry Pi)
 # =====================================================================
 CAMERA_BACKEND = "auto"             # "auto" | "picamera2" (Camera Module 2) | "opencv" (USB webcam)
-CAMERA_INDEX = 0                    # Chỉ số webcam khi dùng OpenCV
+CAMERA_INDEX = 0                    # Số webcam khi dùng OpenCV: laptop 0 = camera liền máy, 1 = webcam USB rời
+                                    # (xem danh sách: python examples/01_xem_camera.py --list; hoặc chạy với --camera 1)
 FRAME_WIDTH = 640
 FRAME_HEIGHT = 480
 CAMERA_FLIP = ""                    # "" | "h" | "v" | "hv" (lật ảnh nếu lắp camera ngược)
-CAMERA_HFOV_DEG = 62.2              # Góc nhìn ngang Camera Module 2
+CAMERA_HFOV_DEG = 62.2              # Góc nhìn ngang Camera Module 2 (webcam USB: lấy theo thông số hãng, thường 60–78°)
 CAMERA_VFOV_DEG = 48.8              # Góc nhìn dọc Camera Module 2
 CAMERA_HEIGHT_M = 0.25              # Chiều cao tâm ống kính so với sàn (ĐO LẠI!)
 CAMERA_TILT_DEG = 0.0               # Góc chúc xuống của camera (+ = chúc xuống)
