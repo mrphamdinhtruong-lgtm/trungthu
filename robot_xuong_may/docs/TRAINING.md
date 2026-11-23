@@ -1,6 +1,7 @@
 # HUẤN LUYỆN YOLO NHẬN DIỆN 3 TRẠM (theo kế hoạch train ngày 1)
 
-> Hướng dẫn từng giờ cho người viết code: `docs/HUONG_DAN_NGAY_1.md`.
+> Tài liệu này dành cho **nhóm train** (chụp, gán nhãn, gộp, chia, train).
+> Người viết code: `docs/HUONG_DAN_NGAY_1.md` · Yêu cầu bàn giao gửi nhóm: `docs/YEU_CAU_NHOM_TRAIN.md`.
 
 ## 1. Quyết định đã chốt
 
@@ -49,6 +50,7 @@ python training/split_dataset.py --src dataset/labeled --val 0.2 --test 0.1
 ```
 Script báo: số đối tượng mỗi lớp trong từng tập, tập thiếu lớp, dòng nhãn sai mã lớp / sai tọa độ,
 **ảnh val/test gần trùng ảnh train**. Mỗi buổi chỉ nằm trong 1 tập.
+Người viết code kiểm tra lại bộ bàn giao (thư mục hoặc zip cloud): `python training/check_dataset.py nhan/dataset.zip`.
 
 ## 6. Huấn luyện
 

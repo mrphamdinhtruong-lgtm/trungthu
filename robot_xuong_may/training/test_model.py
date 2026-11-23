@@ -73,8 +73,15 @@ def read_labels(path: Path, names: dict):
 
 def evaluate(det, root: Path, split: str, iou_thr: float = 0.5):
     import cv2
-    img_dir = root / "images" / split if (root / "images" / split).exists() else root
-    lab_dir = root / "labels" / split if (root / "labels" / split).exists() else root
+    from training.check_dataset import SPLIT_ALIASES, find_splits
+    splits = find_splits(root)                      # kiểu Ultralytics (images/test) hoặc Roboflow (test/images)
+    want = SPLIT_ALIASES.get(split, split)
+    if want in splits:
+        img_dir, lab_dir = splits[want]
+    elif splits:
+        raise SystemExit(f"Không có tập '{split}' trong {root} (có: {', '.join(splits)})")
+    else:
+        img_dir = lab_dir = root                    # thư mục phẳng: ảnh + .txt cùng chỗ
     files = sorted(p for p in img_dir.rglob("*") if p.suffix.lower() in IMG_EXT)
     if not files:
         raise SystemExit(f"Không có ảnh trong {img_dir}")

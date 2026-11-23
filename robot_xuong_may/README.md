@@ -82,9 +82,9 @@ robot_xuong_may/
 │   ├── gpio_io.py           # nút START/STOP, còi
 │   └── simworld.py          # mô phỏng toàn bộ (chạy thử không cần phần cứng)
 ├── firmware/robot_firmware/ # robot_firmware.ino, sac_dob.h, config_gen.h (tự sinh)
-├── training/                # chụp ảnh, chia theo buổi, huấn luyện, xuất ONNX + metadata, đánh giá
+├── training/                # kiểm tra dataset (check_dataset), xuất ONNX + metadata, đánh giá; công cụ cho nhóm train
 ├── tools/                   # motor_test.py, sac_dob_sim.py, compass_calibrate.py
-├── tests/                   # 103 kiểm thử tự động (pytest)
+├── tests/                   # 109 kiểm thử tự động (pytest)
 ├── docs/                    # WIRING.md, NAVIGATION.md, SAC_DOB.md, TRAINING.md, ảnh
 └── scripts/                 # install_pi.sh, robot-autostart.desktop
 ```
@@ -208,7 +208,7 @@ Chạy thử **không cần phần cứng** (laptop/Pi): `python main.py --sim` 
 ## 11. Kiểm thử phần mềm
 
 ```bash
-python -m pytest -q        # 103 kiểm thử: máy trạng thái, mô phỏng đủ lộ trình, tránh vật cản, dạy-lặp,
+python -m pytest -q        # 109 kiểm thử: máy trạng thái, mô phỏng đủ lộ trình, tránh vật cản, dạy-lặp,
                            # bộ nhận diện ONNX, Arduino giả qua cổng ảo, chia dữ liệu theo buổi,
                            # nhận diện sàn (gạch/gạch bông/bê tông), ORB, động học, giao thức,
                            # SAC-DOB và ĐỐI CHIẾU bản C++ firmware với bản Python
@@ -234,6 +234,7 @@ Firmware đã được biên dịch thử cho ATmega328P (avr-gcc 7.3.0) với m
 * `docs/SAC_DOB.md` – lý thuyết, cài đặt, mô phỏng, quy trình chỉnh SAC + DOB
 * `docs/TRAINING.md` – khối số trạm, chụp, gán nhãn, chia theo buổi, huấn luyện, xuất ONNX, đánh giá
 * `docs/HUONG_DAN_NGAY_1.md` – **hướng dẫn từng giờ cho người viết code theo kế hoạch train 3 trạm ngày 1**
+* `docs/YEU_CAU_NHOM_TRAIN.md` – yêu cầu bàn giao gửi 3 người train (tên lớp, định dạng nhãn, chia theo buổi, hạn)
 
 **Tham khảo:** Kaufman, Barkana, Sobel – *Direct Adaptive Control Algorithms* (Springer); Ohnishi et al. – *Motion control for
 advanced mechatronics* (DOB, IEEE/ASME T-Mech 1996); Ulrich & Nourbakhsh – *Appearance-Based Obstacle Detection with
