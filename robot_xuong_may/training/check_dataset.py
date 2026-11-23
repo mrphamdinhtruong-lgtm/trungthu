@@ -137,7 +137,7 @@ def check(root: Path, expected: List[str], dup_dist: int = 5) -> Tuple[bool, Lis
         err("không có data.yaml")
     else:
         names, nc = read_yaml_names(yamls[0])
-        rep.append(f"data.yaml: {yamls[0].relative_to(root)} -> names = {names}, nc = {nc}")
+        rep.append(f"data.yaml: {yamls[0].relative_to(root).as_posix()} -> names = {names}, nc = {nc}")
         if names is None:
             err("data.yaml không có 'names'")
         elif expected and names != expected:
@@ -148,7 +148,8 @@ def check(root: Path, expected: List[str], dup_dist: int = 5) -> Tuple[bool, Lis
 
     # ---- các tập ----
     splits = find_splits(root)
-    rep.append("Các tập tìm thấy: " + (", ".join(f"{s} ({p[0].relative_to(root)})" for s, p in splits.items()) or "KHÔNG CÓ"))
+    rep.append("Các tập tìm thấy: " + (", ".join(f"{s} ({p[0].relative_to(root).as_posix()})"   # "/" cả trên Windows
+                                              for s, p in splits.items()) or "KHÔNG CÓ"))
     for need in ("train", "val"):
         if need not in splits:
             err(f"thiếu tập {need}")
