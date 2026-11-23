@@ -237,6 +237,8 @@ dừng khẩn, xử lý lệnh sai (`tests/test_firmware_sim.py`). **Chưa chạ
 
 ## 13. Tài liệu chi tiết
 
+* **`docs/01_PHAN_CHIA_CODE_VA_HUONG_DAN.docx` (Word) – code nào nạp Arduino, code nào chạy trên Raspberry Pi, đấu dây
+  (gồm MPU-6050), các bước nạp và chạy** · `docs/02_PHU_LUC_MA_NGUON.docx` – phụ lục mã nguồn đầy đủ chia theo nơi chạy
 * **`docs/BAT_DAU_CHO_NGUOI_MOI.md` – người mới đọc trước: file nào chạy ở Arduino, file nào ở máy tính nhúng, 4 bài tập**
 
 * **`docs/NAP_ARDUINO.md` – sơ đồ chân Arduino, sơ đồ nguồn, các bước nạp (kèm `docs/BANG_DAU_DAY_ARDUINO.xlsx` để in, tích từng dây)**

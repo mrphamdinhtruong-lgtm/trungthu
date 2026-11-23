@@ -11,7 +11,7 @@ sudo apt update
 sudo apt install -y python3-venv python3-pip python3-picamera2 python3-libcamera \
                     fonts-dejavu-core i2c-tools git
 
-echo "[2/6] Bật I2C (la bàn, LCD) ..."
+echo "[2/6] Bật I2C (LCD 16x2 nếu có; con quay MPU-6050 nối Arduino nên không cần) ..."
 sudo raspi-config nonint do_i2c 0 || true
 
 echo "[3/6] Quyền truy cập cổng serial / I2C / GPIO / camera ..."
