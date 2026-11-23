@@ -29,14 +29,17 @@ sys.path.insert(0, str(PROJECT_DIR))
 from robot import config as cfg  # noqa: E402
 from robot.kinematics import MecanumKinematics  # noqa: E402
 from robot.sac_dob import MODE_NAMES  # noqa: E402
-from robot.serial_link import SerialLink  # noqa: E402
+from robot.serial_link import PortError, SerialLink  # noqa: E402
 
 WHEELS = ("FL", "FR", "RL", "RR")
 OUT_DIR = PROJECT_DIR / cfg.LOG_DIR
 
 
 def connect(port=None) -> SerialLink:
-    link = SerialLink(port or cfg.SERIAL_PORT, cfg.SERIAL_BAUD).open()
+    try:
+        link = SerialLink(port or cfg.SERIAL_PORT, cfg.SERIAL_BAUD).open()
+    except PortError as exc:
+        raise SystemExit(str(exc))
     if link.info is None:
         raise SystemExit("Arduino không trả lời – đã nạp firmware chưa? (python flash_arduino.py)")
     return link

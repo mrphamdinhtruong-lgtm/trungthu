@@ -125,8 +125,11 @@ class RobotApp:
                 from robot.simworld import SimLink
                 self.link = SimLink(cfg, config_hash=self.expected_hash).start_thread()
             else:
-                from robot.serial_link import SerialLink
-                self.link = SerialLink(a.port or cfg.SERIAL_PORT, cfg.SERIAL_BAUD).open()
+                from robot.serial_link import PortError, SerialLink
+                try:
+                    self.link = SerialLink(a.port or cfg.SERIAL_PORT, cfg.SERIAL_BAUD).open()
+                except PortError as exc:
+                    raise SystemExit(f"{exc}\n(Thử không cần Arduino: python main.py --sim)")
             # --- Camera ---
             from robot.camera import Camera
             self.camera = Camera(cfg.CAMERA_BACKEND, cfg.CAMERA_INDEX, cfg.FRAME_WIDTH, cfg.FRAME_HEIGHT,

@@ -192,8 +192,15 @@ def main() -> int:
     if port is None:
         from robot.serial_link import find_arduino_port
         port = find_arduino_port()
+    from robot.serial_link import describe_ports, port_problem
     if port is None:
-        print("[flash] Không tìm thấy Arduino. Cắm cáp USB hoặc dùng --port")
+        print("[flash] Không tìm thấy Arduino. Cắm cáp USB (cáp có truyền dữ liệu) hoặc dùng --port COMx\n"
+              f"        Các cổng đang có:\n{describe_ports()}")
+        return 3
+    why = port_problem(port)
+    if why:                                       # báo dễ hiểu thay vì lỗi khó đọc của avrdude
+        print(f"[flash] LỖI CỔNG: {why}\n        Các cổng đang có:\n{describe_ports()}\n"
+              "        Xem lại bằng: python -m serial.tools.list_ports -v")
         return 3
     run([cli, "upload", "-p", port, "--fqbn", FQBN, str(SKETCH_DIR)])
     info("Nạp xong.")

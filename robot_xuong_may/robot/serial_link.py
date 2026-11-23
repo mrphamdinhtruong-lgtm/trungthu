@@ -60,6 +60,68 @@ class DebugSample:
     K: List[float]
 
 
+class PortError(RuntimeError):
+    """Không mở được cổng serial – thông báo tiếng Việt kèm cách xử lý (in ra cho người dùng)."""
+
+
+def list_serial_ports() -> list:
+    try:
+        from serial.tools import list_ports
+    except ImportError:
+        return []
+    return list(list_ports.comports())
+
+
+def _is_bluetooth(p) -> bool:
+    return "bluetooth" in (p.description or "").lower() or "BTHENUM" in (p.hwid or "")
+
+
+def describe_ports(ports=None) -> str:
+    """Danh sách cổng đang có, đánh dấu cổng nào là Arduino / Bluetooth."""
+    ports = list_serial_ports() if ports is None else ports
+    rows = []
+    for p in ports:
+        tag = "   <- ARDUINO" if p.vid in KNOWN_VIDS else ("   (Bluetooth – KHÔNG phải Arduino)" if _is_bluetooth(p) else "")
+        rows.append(f"    {p.device}: {p.description}{tag}")
+    return "\n".join(rows) or "    (không có cổng nào – Arduino chưa cắm hoặc cáp USB không truyền dữ liệu)"
+
+
+def port_problem(port: str, ports=None) -> Optional[str]:
+    """Kiểm tra cổng trước khi dùng. None = không thấy vấn đề; chuỗi = lý do + cách xử lý."""
+    up = (port or "").upper()
+    if not (up.startswith("COM") or "TTYACM" in up or "TTYUSB" in up or "CU.USB" in up):
+        return None                                  # cổng ảo (Arduino giả / pty) -> không kiểm tra
+    ports = list_serial_ports() if ports is None else ports
+    names = [p.device for p in ports]
+    if port not in names:
+        return (f"Cổng {port} hiện KHÔNG tồn tại: Arduino chưa cắm, cáp USB lỏng / chỉ sạc, cắm qua cục sạc / hub, "
+                "hoặc Arduino đang ở cổng khác (xem danh sách dưới).")
+    if names.count(port) > 1:
+        return (f"Cổng {port} đang bị 2 thiết bị dùng CHUNG tên (thường là cổng Bluetooth ảo). Đổi số cổng của Arduino: "
+                "Device Manager > Ports (COM & LPT) > chuột phải Arduino > Properties > Port Settings > Advanced > "
+                "COM Port Number chọn số chưa dùng (vd COM9) > OK, rút cáp cắm lại.")
+    return None
+
+
+def port_help(port: str, exc: Exception, ports=None) -> str:
+    """Thông báo lỗi mở cổng dễ hiểu cho người mới."""
+    ports = list_serial_ports() if ports is None else ports
+    msg = str(exc)
+    why = port_problem(port, ports)
+    if why is None:
+        low = msg.lower()
+        if "access" in low or "denied" in low or "busy" in low or "permission" in low:
+            why = (f"Cổng {port} đang bị chương trình khác mở (Arduino IDE, Serial Monitor, main.py, motor_test.py...) "
+                   "-> tắt chương trình đó rồi chạy lại. Trên Pi/Linux: sudo usermod -aG dialout $USER rồi đăng nhập lại.")
+        elif "semaphore" in low or "timeout" in low:
+            why = (f"Cổng {port} không phản hồi – thường là cổng Bluetooth ảo trùng tên, hoặc cáp USB chập chờn. "
+                   "Rút cáp Arduino ra cắm lại; xem danh sách dưới để chọn đúng cổng có chữ ARDUINO.")
+        else:
+            why = "Kiểm tra cáp USB, cổng COM và driver."
+    return (f"Không mở được cổng {port}: {msg}\n  -> {why}\n  Các cổng đang có:\n{describe_ports(ports)}\n"
+            "  Xem lại bằng: python -m serial.tools.list_ports -v")
+
+
 def find_arduino_port() -> Optional[str]:
     try:
         from serial.tools import list_ports
@@ -136,10 +198,14 @@ class SerialLink:
         if not port or port == "auto":
             port = find_arduino_port()
             if port is None:
-                raise RuntimeError("Không tìm thấy Arduino. Kiểm tra cáp USB hoặc đặt SERIAL_PORT trong config.py")
+                raise PortError("Không tìm thấy Arduino. Cắm cáp USB (cáp có truyền dữ liệu) hoặc dùng --port.\n"
+                                f"  Các cổng đang có:\n{describe_ports()}")
         self.port = port
         log.info("Mở cổng %s @%d", port, self.baud)
-        self.ser = serial.Serial(port, self.baud, timeout=0.05, write_timeout=0.5)
+        try:
+            self.ser = serial.Serial(port, self.baud, timeout=0.05, write_timeout=0.5)
+        except (serial.SerialException, OSError) as exc:
+            raise PortError(port_help(port, exc)) from None
         # Mở cổng làm UNO tự reset (chân DTR) -> chờ bootloader xong
         time.sleep(2.0)
         self.ser.reset_input_buffer()

@@ -53,7 +53,11 @@ def main():
     rpm = None
     if not args.by_hand:
         from robot.serial_link import SerialLink
-        link = SerialLink(args.port or cfg.SERIAL_PORT, cfg.SERIAL_BAUD).open()
+        from robot.serial_link import PortError
+        try:
+            link = SerialLink(args.port or cfg.SERIAL_PORT, cfg.SERIAL_BAUD).open()
+        except PortError as exc:
+            raise SystemExit(str(exc))
         rpm = MecanumKinematics.from_config(cfg).inverse(0.0, 0.0, abs(args.wz))
         input("Đặt robot ở chỗ trống, robot sẽ tự QUAY TRÁI ~2 vòng. Enter để bắt đầu...")
     else:

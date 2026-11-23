@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from robot import config as cfg
 from robot import fwconfig
-from robot.serial_link import SerialLink
+from robot.serial_link import PortError, SerialLink
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--port", default=cfg.SERIAL_PORT, help='"auto", /dev/ttyACM0, COM5...')
@@ -40,7 +40,12 @@ if args.fake:
     args.port = gia.port
     print("Arduino giả ở cổng", gia.port)
 
-link = SerialLink(args.port, cfg.SERIAL_BAUD).open()   # 1) mở cổng, chờ Arduino trả lời
+try:
+    link = SerialLink(args.port, cfg.SERIAL_BAUD).open()   # 1) mở cổng, chờ Arduino trả lời
+except PortError as exc:                                 # cáp lỏng / sai cổng -> báo dễ hiểu, không in traceback
+    if gia:
+        gia.stop()
+    raise SystemExit(str(exc))
 print("Thông tin firmware:", link.info)
 if link.info is None:
     print("!! Arduino không trả lời – đã nạp firmware chưa? (python flash_arduino.py --port ...)")
