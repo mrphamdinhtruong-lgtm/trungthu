@@ -5,6 +5,9 @@ Robot 4 bánh mecanum tự đi đến **TRẠM 1 → TRẠM 2 → TRẠM 3**, d�
 đi theo lộ trình đã dạy, **dừng khi gặp vật cản** và hiển thị trạng thái lên màn hình.
 Động cơ được điều khiển bằng thuật toán **SAC + DOB (thích nghi)** trên Arduino UNO.
 
+> **Mới làm xử lý ảnh / máy tính nhúng?** Đọc trước `docs/BAT_DAU_CHO_NGUOI_MOI.md`
+> (file nào chạy ở Arduino, file nào chạy ở Raspberry Pi, 4 bài tập chạy được ngay trong `examples/`).
+
 | Đang di chuyển | Đã đến trạm (đếm ngược) | Gặp vật cản |
 |---|---|---|
 | ![](docs/img/gui_move.png) | ![](docs/img/gui_wait.png) | ![](docs/img/gui_obst.png) |
@@ -84,7 +87,8 @@ robot_xuong_may/
 ├── firmware/robot_firmware/ # robot_firmware.ino, sac_dob.h, config_gen.h (tự sinh)
 ├── training/                # kiểm tra dataset (check_dataset), xuất ONNX + metadata, đánh giá; công cụ cho nhóm train
 ├── tools/                   # motor_test.py, sac_dob_sim.py, compass_calibrate.py
-├── tests/                   # 109 kiểm thử tự động (pytest)
+├── examples/                # 4 bài tập cho người mới: camera, nhận diện, gửi lệnh Arduino, máy trạng thái
+├── tests/                   # 113 kiểm thử tự động (pytest)
 ├── docs/                    # WIRING.md, NAVIGATION.md, SAC_DOB.md, TRAINING.md, ảnh
 └── scripts/                 # install_pi.sh, robot-autostart.desktop
 ```
@@ -208,7 +212,7 @@ Chạy thử **không cần phần cứng** (laptop/Pi): `python main.py --sim` 
 ## 11. Kiểm thử phần mềm
 
 ```bash
-python -m pytest -q        # 109 kiểm thử: máy trạng thái, mô phỏng đủ lộ trình, tránh vật cản, dạy-lặp,
+python -m pytest -q        # 113 kiểm thử: máy trạng thái, mô phỏng đủ lộ trình, tránh vật cản, dạy-lặp,
                            # bộ nhận diện ONNX, Arduino giả qua cổng ảo, chia dữ liệu theo buổi,
                            # nhận diện sàn (gạch/gạch bông/bê tông), ORB, động học, giao thức,
                            # SAC-DOB và ĐỐI CHIẾU bản C++ firmware với bản Python
@@ -228,6 +232,8 @@ Firmware đã được biên dịch thử cho ATmega328P (avr-gcc 7.3.0) với m
 * Kết quả SAC-DOB trong tài liệu là **mô phỏng**; số liệu thật lấy bằng `tools/motor_test.py step`.
 
 ## 13. Tài liệu chi tiết
+
+* **`docs/BAT_DAU_CHO_NGUOI_MOI.md` – người mới đọc trước: file nào chạy ở Arduino, file nào ở máy tính nhúng, 4 bài tập**
 
 * `docs/WIRING.md` – sơ đồ đấu dây, bảng chân, nguồn, an toàn điện
 * `docs/NAVIGATION.md` – dẫn đường bằng camera, nhận diện sàn, lách vật cản, dạy – lặp lộ trình
