@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import os
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -23,3 +25,11 @@ def make_cfg(**overrides):
 @pytest.fixture
 def cfg():
     return make_cfg()
+
+
+def run_script(args, cwd=None, timeout=300):
+    """Chạy 1 script Python như trên Windows khi kết quả bị thu lại (bảng mã cp1252) –
+    script phải tự in được tiếng Việt; kết quả đọc bằng UTF-8."""
+    env = dict(os.environ, PYTHONIOENCODING="cp1252")
+    return subprocess.run([sys.executable, *map(str, args)], capture_output=True, encoding="utf-8",
+                          errors="replace", cwd=cwd or ROOT, env=env, timeout=timeout)

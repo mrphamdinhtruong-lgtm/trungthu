@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """Công cụ của người viết code: kiểm tra bộ dữ liệu nhóm train bàn giao (chỉ đọc)."""
 import shutil
-import subprocess
 import sys
 import zipfile
 from pathlib import Path
 
 import numpy as np
 import pytest
+
+from conftest import run_script
 
 cv2 = pytest.importorskip("cv2")
 
@@ -16,7 +17,8 @@ TOOL = ROOT / "training" / "check_dataset.py"
 
 
 def run(path):
-    r = subprocess.run([sys.executable, str(TOOL), str(path)], capture_output=True, text=True, cwd=ROOT)
+    r = run_script([TOOL, path])
+    assert "UnicodeEncodeError" not in r.stderr, r.stderr
     return r.returncode, r.stdout
 
 

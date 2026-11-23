@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 """Các bài tập cho người mới (examples/) phải luôn chạy được."""
 import os
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+
+from conftest import run_script
 
 ROOT = Path(__file__).resolve().parent.parent
 EX = ROOT / "examples"
 
 
 def run(*args, cwd=None):
-    return subprocess.run([sys.executable, *map(str, args)], capture_output=True, text=True,
-                          cwd=cwd or ROOT, timeout=120)
+    return run_script(args, cwd=cwd, timeout=120)
 
 
 def test_bai4_state_machine():
@@ -60,3 +60,13 @@ def test_bai2_detect_with_fake_onnx(tmp_path):
     r = run(EX / "02_nhan_dien_anh.py", img, "--model", tmp_path / "best.onnx", cwd=tmp_path)
     assert r.returncode == 0, r.stderr
     assert "tram_2" in r.stdout and (tmp_path / "bai2_ket_qua.jpg").exists()
+
+
+@pytest.mark.parametrize("script", ["main.py", "flash_arduino.py", "tools/motor_test.py", "tools/fake_arduino.py",
+                                    "training/check_dataset.py", "training/export_model.py", "training/test_model.py",
+                                    "training/split_dataset.py", "training/capture_images.py"])
+def test_cli_help_prints_vietnamese_on_windows_codepage(script):
+    """Mọi lệnh phải in được tiếng Việt kể cả khi Windows dùng bảng mã cp1252 (kết quả bị chuyển hướng)."""
+    r = run(ROOT / script, "--help")
+    assert "UnicodeEncodeError" not in r.stderr, r.stderr
+    assert r.returncode == 0, r.stderr[-500:]

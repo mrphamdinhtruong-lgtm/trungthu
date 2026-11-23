@@ -18,6 +18,12 @@ from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
+for _s in (sys.stdout, sys.stderr):          # Windows: in tiếng Việt khi bị chuyển hướng (cp1252)
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        pass
+
 
 def main():
     ap = argparse.ArgumentParser()

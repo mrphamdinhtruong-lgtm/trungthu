@@ -88,7 +88,7 @@ robot_xuong_may/
 ├── training/                # kiểm tra dataset (check_dataset), xuất ONNX + metadata, đánh giá; công cụ cho nhóm train
 ├── tools/                   # motor_test.py, sac_dob_sim.py, compass_calibrate.py
 ├── examples/                # 4 bài tập cho người mới: camera, nhận diện, gửi lệnh Arduino, máy trạng thái
-├── tests/                   # 119 kiểm thử tự động (pytest), gồm chạy firmware trên ATmega328P mô phỏng
+├── tests/                   # 128 kiểm thử tự động (pytest), gồm chạy firmware trên ATmega328P mô phỏng
 ├── docs/                    # WIRING.md, NAVIGATION.md, SAC_DOB.md, TRAINING.md, ảnh
 └── scripts/                 # install_pi.sh, robot-autostart.desktop
 ```
@@ -212,7 +212,7 @@ Chạy thử **không cần phần cứng** (laptop/Pi): `python main.py --sim` 
 ## 11. Kiểm thử phần mềm
 
 ```bash
-python -m pytest -q        # 119 kiểm thử: máy trạng thái, mô phỏng đủ lộ trình, tránh vật cản, dạy-lặp,
+python -m pytest -q        # 128 kiểm thử: máy trạng thái, mô phỏng đủ lộ trình, tránh vật cản, dạy-lặp,
                            # bộ nhận diện ONNX, Arduino giả qua cổng ảo, chia dữ liệu theo buổi,
                            # nhận diện sàn (gạch/gạch bông/bê tông), ORB, động học, giao thức,
                            # SAC-DOB và ĐỐI CHIẾU bản C++ firmware với bản Python

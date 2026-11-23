@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Giao tiếp Pi–Arduino (Arduino giả qua pty), nguồn ảnh/video, chia dữ liệu theo buổi, đánh giá mô hình."""
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -13,6 +12,8 @@ cv2 = pytest.importorskip("cv2")
 
 from robot import config, fwconfig  # noqa: E402
 from robot.common import Detection  # noqa: E402
+
+from conftest import run_script  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -85,8 +86,7 @@ def _make_dataset(root: Path):
 def test_split_by_session_detects_duplicates_and_bad_labels(tmp_path):
     src, dst = tmp_path / "labeled", tmp_path / "ds"
     _make_dataset(src)
-    r = subprocess.run([sys.executable, str(ROOT / "training" / "split_dataset.py"), "--src", str(src),
-                        "--dst", str(dst), "--val", "0.2", "--test", "0.2"], capture_output=True, text=True)
+    r = run_script([ROOT / "training" / "split_dataset.py", "--src", src, "--dst", dst, "--val", "0.2", "--test", "0.2"])
     out = r.stdout
     assert r.returncode == 1 and "SAI định dạng" in out           # dòng nhãn lớp 7 bị bắt
     assert "GẦN TRÙNG" in out
