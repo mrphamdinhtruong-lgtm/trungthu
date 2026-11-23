@@ -52,6 +52,16 @@ SPEED_LPF_ALPHA = 0.5               # Hệ số lọc thông thấp tốc độ 
 IDLE_SPEED_RPM = 2.0                # Dưới ngưỡng này khi đặt 0 -> coi như đứng yên, ngắt PWM
 DIR_SWITCH_RPM = 4.0                # Encoder 1 kênh: chỉ đổi dấu đếm khi bánh gần dừng
 
+# --- Con quay MPU-6050 (module HW-123 / GY-521) nối Arduino qua I2C: SDA -> A4, SCL -> A5, VCC -> 5V, GND -> GND ---
+# MPU-6050 KHÔNG có từ kế: đo góc quay TƯƠNG ĐỐI (0° = hướng robot lúc bật nguồn / mở main.py), không chỉ hướng Bắc.
+# Không bị khung sắt nhà xưởng làm lệch như la bàn từ. Lúc Arduino khởi động phải để robot ĐỨNG YÊN ~1 s (đo độ lệch 0).
+IMU_ENABLE = True                   # False nếu chưa đấu MPU-6050 (robot vẫn chạy, chỉ mất chức năng giữ hướng)
+IMU_I2C_ADDR = 0x68                 # Chân AD0 để trống / nối GND = 0x68; AD0 nối VCC = 0x69
+IMU_YAW_SIGN = 1                    # Quay robot sang TRÁI mà góc GIẢM (module lắp úp ngược) -> đổi thành -1
+                                    # Kiểm tra: python tools/motor_test.py imu
+IMU_STILL_DPS = 1.0                 # Robot đứng yên & tốc độ quay đo < ngưỡng này -> tự hiệu chỉnh độ trôi con quay
+
+# A4 / A5 là 2 chân I2C của UNO -> khi IMU_ENABLE = True thì 2 tùy chọn dưới PHẢI để False
 ESTOP_INPUT_ENABLE = False          # True: dùng nút dừng khẩn (tiếp điểm NC) nối A4 - GND. CHỈ BẬT KHI ĐÃ ĐẤU
                                     # (bật mà A4 để hở = robot luôn ở trạng thái DỪNG KHẨN)
 BATTERY_SENSE_ENABLE = False        # True: đo áp pin 3S qua cầu phân áp vào A5. CHỈ BẬT KHI ĐÃ ĐẤU cầu
@@ -121,7 +131,8 @@ OBSTACLE_CLASSES = ("vat_can", "nguoi")
 # wait_s      : thời gian dừng chờ công nhân bỏ rác / vải vụn
 # marker_h_m  : chiều cao thật của biển báo / KHỐI SỐ (m) – dùng ước lượng khoảng cách (ĐO LẠI!)
 # search_dir  : chiều quay khi tìm trạm: +1 = quay trái (CCW), -1 = quay phải (CW)
-# heading_deg : (tùy chọn) hướng la bàn gần đúng nhìn về trạm, None = không dùng
+# heading_deg : (tùy chọn) góc gần đúng nhìn về trạm, None = không dùng. Với MPU-6050 góc tính TƯƠNG ĐỐI so với
+#               hướng robot lúc bật (đặt robot ở vị trí xuất phát, luôn quay cùng 1 hướng); +90 = quay trái 90°
 STATIONS = {
 #   (kế hoạch ngày 1: chờ 15 s; yêu cầu đề tài ban đầu 20 s -> chỉ sửa wait_s)
     1: {"class": "tram_1", "name": "TRẠM 1", "wait_s": 15.0, "marker_h_m": 0.20, "search_dir": -1, "heading_deg": None},
@@ -223,10 +234,13 @@ ROUTE_K_W = 1.2                     # Độ lợi quay theo độ lệch ảnh m
 ROUTE_HANDOFF_DISTANCE_M = 2.5      # Thấy biển trạm gần hơn khoảng này -> chuyển sang tiếp cận bằng YOLO
 
 # =====================================================================
-# [H] LA BÀN (nối I2C của Raspberry Pi: SDA=GPIO2, SCL=GPIO3)
+# [H] LA BÀN TỪ (GY-271) NỐI I2C CỦA RASPBERRY PI – TÙY CHỌN, MẶC ĐỊNH TẮT
+#     Robot này dùng con quay MPU-6050 nối ARDUINO (IMU_ENABLE ở mục [B]). Chỉ bật mục này nếu
+#     không dùng MPU-6050 mà gắn la bàn từ QMC5883L/HMC5883L vào Pi (SDA=GPIO2, SCL=GPIO3).
 # =====================================================================
-COMPASS_ENABLE = True
-COMPASS_TYPE = "qmc5883l"           # "qmc5883l" (GY-271 đời mới, 0x0D) | "hmc5883l" (0x1E)
+COMPASS_ENABLE = False
+COMPASS_TYPE = "auto"               # "auto" = tự nhận theo địa chỉ I2C | "qmc5883l" (0x0D) | "qmc5883p" (0x2C) | "hmc5883l" (0x1E)
+                                    # Thử: python tools/compass_calibrate.py --test   (không thấy la bàn -> robot vẫn chạy, chỉ báo cảnh báo)
 COMPASS_I2C_BUS = 1
 COMPASS_CAL_FILE = "compass_cal.json"   # Tạo bằng: python tools/compass_calibrate.py
 

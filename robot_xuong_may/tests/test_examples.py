@@ -64,7 +64,8 @@ def test_bai2_detect_with_fake_onnx(tmp_path):
 
 @pytest.mark.parametrize("script", ["main.py", "flash_arduino.py", "tools/motor_test.py", "tools/fake_arduino.py",
                                     "training/check_dataset.py", "training/export_model.py", "training/test_model.py",
-                                    "training/split_dataset.py", "training/capture_images.py"])
+                                    "training/split_dataset.py", "training/capture_images.py",
+                                    "tools/compass_calibrate.py"])
 def test_cli_help_prints_vietnamese_on_windows_codepage(script):
     """Mọi lệnh phải in được tiếng Việt kể cả khi Windows dùng bảng mã cp1252 (kết quả bị chuyển hướng)."""
     r = run(ROOT / script, "--help")

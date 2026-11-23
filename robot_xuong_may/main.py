@@ -72,7 +72,7 @@ def parse_args():
     ap.add_argument("--video", default=None, help="dùng file video thay camera (thử nghiệm)")
     ap.add_argument("--images", default=None, help="dùng thư mục ảnh thay camera (thử nghiệm)")
     ap.add_argument("--fps", type=float, default=2.0, help="tốc độ trình chiếu khi dùng --images")
-    ap.add_argument("--no-compass", action="store_true", help="tắt la bàn")
+    ap.add_argument("--no-compass", action="store_true", help="không dùng góc quay (con quay MPU-6050 / la bàn)")
     ap.add_argument("--no-floor", action="store_true",
                     help="tắt nhận diện sàn (khi thử bằng ảnh/video KHÔNG quay từ camera robot)")
     ap.add_argument("-v", "--verbose", action="store_true")
@@ -101,6 +101,7 @@ class RobotApp:
         self._fps = 0.0
         self._last_loop = time.monotonic()
         self._last_world_step = time.monotonic()
+        self._t_start = time.monotonic()
         self.expected_hash = fwconfig.config_hash(cfg)
         self._build()
 
@@ -113,7 +114,8 @@ class RobotApp:
             self.world = SimWorld(cfg, self.kin)
             self.camera = SimCamera(self.world, cfg.FRAME_WIDTH, cfg.FRAME_HEIGHT).start()
             self.detector = SimDetector(self.world)
-            self.compass = SimCompass(self.world)
+            if not cfg.IMU_ENABLE:                        # có MPU-6050: góc quay lấy từ SimLink (Arduino giả)
+                self.compass = SimCompass(self.world)
             from robot.simworld import SimRouteManager
             self.routes = SimRouteManager(cfg, self.world)
             log.info("CHẾ ĐỘ MÔ PHỎNG – phím O: đặt/xóa người chắn đường trước robot")
@@ -151,8 +153,15 @@ class RobotApp:
                 self.warnings.append("Chưa có mô hình YOLO – chỉ chạy được chế độ tay")
                 self.detector = NullDetector()
                 self.model_ok = False
-            # --- La bàn ---
-            if cfg.COMPASS_ENABLE and not a.no_compass:
+            # --- Góc quay: con quay MPU-6050 trên Arduino (gửi kèm telemetry) hoặc la bàn từ trên Pi ---
+            if cfg.IMU_ENABLE:
+                who = (getattr(self.link, "info", None) or {}).get("imu", 0)
+                if who:
+                    log.info("Con quay MPU-6050 trên Arduino: WHO_AM_I = 0x%02X", who)
+                else:
+                    log.warning("Arduino chưa thấy MPU-6050 (SDA->A4, SCL->A5, VCC->5V, GND) – robot vẫn chạy, "
+                                "không giữ hướng được")
+            elif cfg.COMPASS_ENABLE and not a.no_compass:
                 try:
                     from robot.compass import Compass
                     self.compass = Compass(cfg.COMPASS_TYPE, cfg.COMPASS_I2C_BUS, cfg.COMPASS_CAL_FILE).start()
@@ -318,10 +327,10 @@ class RobotApp:
         frame, t_frame = self.camera.read()
         cam_ok = frame is not None and (now - t_frame) < cfg.CAMERA_TIMEOUT_S
         dets = self.detector.detect(frame) if cam_ok else []
-        yaw = self.compass.yaw_deg if self.compass is not None else None
 
         tel = self.link.telemetry
-        self.odo.update(tel.rpm, now)
+        yaw = self._yaw(tel, now)
+        self.odo.update(tel.rpm, now, yaw)
         pose = (self.odo.x, self.odo.y, self.odo.th)
 
         # ---- dẫn đường bằng camera ----
@@ -378,9 +387,12 @@ class RobotApp:
             self._last_state = out.state
 
         warnings = list(self.warnings)
+        if cfg.IMU_ENABLE and yaw is None and now - self._t_start > 4.0:
+            warnings.append("Không đọc được con quay MPU-6050 (A4/A5) – không giữ hướng")
         if cfg.BATTERY_SENSE_ENABLE and 5.0 < tel.vbat < cfg.BATTERY_WARN_V:
             warnings.append(f"Pin yếu: {tel.vbat:.1f} V")
         info = {"vbat": tel.vbat if tel.vbat > 5.0 else None, "yaw": yaw, "rpm": tel.rpm,
+                "yaw_label": "Góc quay (MPU-6050)" if cfg.IMU_ENABLE else "Hướng la bàn",
                 "ctrl": MODE_NAMES.get(tel.mode, "?"), "fps": self._fps,
                 "yolo_ms": getattr(self.detector, "last_ms", 0.0), "warnings": warnings,
                 "model": f"{getattr(self.detector, 'version', '?')} ({getattr(self.detector, 'backend', '?')})",
@@ -392,6 +404,13 @@ class RobotApp:
         spent = time.monotonic() - now
         if spent < cfg.LOOP_MIN_PERIOD_S:
             time.sleep(cfg.LOOP_MIN_PERIOD_S - spent)
+
+    def _yaw(self, tel, now: float):
+        """Góc quay robot (độ, dương = quay trái) hoặc None nếu không có cảm biến / dữ liệu cũ."""
+        if cfg.IMU_ENABLE and not self.args.no_compass:
+            fresh = (now - getattr(tel, "rx_time", 0.0)) < 1.0
+            return tel.yaw if (fresh and getattr(tel, "yaw_ok", False)) else None
+        return self.compass.yaw_deg if self.compass is not None else None
 
     def run(self) -> None:
         log.info("Robot sẵn sàng. Lộ trình: %s", cfg.ROUTE)

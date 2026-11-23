@@ -2,7 +2,7 @@
 
 > Mọi chân dưới đây khớp với `firmware/robot_firmware/robot_firmware.ino` và `robot/config.py`.
 > Nếu đổi chân phải sửa cả hai file rồi chạy lại `python flash_arduino.py`.
-> Sơ đồ hình: `img/so_do_chan_arduino.png`, `img/so_do_nguon.png` · Bảng tích từng dây: `BANG_DAU_DAY_ARDUINO.xlsx` ·
+> Sơ đồ hình: `img/so_do_chan_arduino.png`, `img/so_do_mpu6050.png`, `img/so_do_nguon.png` · Bảng tích từng dây: `BANG_DAU_DAY_ARDUINO.xlsx` ·
 > Các bước nạp: `NAP_ARDUINO.md`.
 
 ![Sơ đồ chân Arduino](img/so_do_chan_arduino.png)
@@ -20,8 +20,7 @@
    │                        └── MẠCH HẠ ÁP 5 V ≥ 3 A (XL4015 5A / UBEC 5V-5A) ── Raspberry Pi 4 (USB-C hoặc chân 5V+GND)
    │                                                                              │
    │                                                                              └── USB ── Arduino UNO (nguồn + dữ liệu)
-   │
-   └── (tùy chọn) cầu phân áp 10 kΩ / 4.7 kΩ ── Arduino A5 (đo áp pin)
+   │                                                                                          └── 5V ── MPU-6050, 4 encoder
 
  GND: nối CHUNG pin – L298N #1 – L298N #2 – Arduino – Raspberry Pi (rất quan trọng)
 ```
@@ -31,8 +30,8 @@
 | Nguồn Pi 4 | Mạch hạ áp riêng 5.1 V ≥ 3 A (Pi 4 + camera + Arduino ~ 1.5–2.5 A). **Không** lấy 5 V từ L298N. Biểu tượng "tia sét" trên màn hình = thiếu áp. |
 | Dây động cơ | ≥ 0.5 mm² (AWG 20). Dòng khởi động JGB37-520 ~1–1.5 A/động cơ. |
 | Tụ lọc | 470–1000 µF / 25 V tại đầu vào mỗi L298N; 100 nF song song mỗi động cơ (chống nhiễu encoder). |
-| Dừng khẩn | Nấm đỏ NC **cắt nguồn động cơ**. Nếu dùng thêm tiếp điểm NC thứ 2 báo về Arduino A4 thì đặt `ESTOP_INPUT_ENABLE = True`. |
-| Pin LiPo | Có còi báo áp thấp từng cell; không xả dưới 3.3 V/cell. |
+| Dừng khẩn | Nấm đỏ NC **cắt nguồn động cơ** bằng phần cứng. A4 đã dùng cho MPU-6050 nên không báo nút về Arduino (`ESTOP_INPUT_ENABLE = False`). |
+| Pin LiPo | **Bắt buộc** gắn còi báo áp thấp từng cell (A5 đã dùng cho MPU-6050 nên Arduino không đo áp pin); không xả dưới 3.3 V/cell. |
 
 ## 2. Arduino UNO R3
 
@@ -55,15 +54,36 @@
 | **D10** (PWM) | L298N #2 **ENB** | PWM bánh RR | **tháo jumper ENB** |
 | **A0** | L298N #2 IN3 | Chiều RR | |
 | **A1** | L298N #2 IN4 | Chiều RR | |
-| **A4** | Nút dừng khẩn NC → GND | Báo dừng khẩn (tùy chọn) | INPUT_PULLUP: hở mạch = DỪNG. **Mặc định tắt** (`ESTOP_INPUT_ENABLE`) |
-| **A5** | Giữa cầu phân áp 10k/4.7k | Đo áp pin (tùy chọn) | thêm tụ 100 nF A5–GND. **Mặc định tắt** (`BATTERY_SENSE_ENABLE`) – để hở sẽ báo pin yếu giả |
-| 5V | VCC 4 encoder | Nguồn encoder | |
-| GND | GND encoder, GND 2 L298N | Mass chung | |
+| **A4** (SDA) | MPU-6050 – **SDA** | I2C dữ liệu con quay | `IMU_ENABLE = True` |
+| **A5** (SCL) | MPU-6050 – **SCL** | I2C xung nhịp con quay | không đảo SDA/SCL |
+| 5V | VCC 4 encoder + VCC MPU-6050 | Nguồn 5 V | module MPU có ổn áp 3.3 V sẵn |
+| GND | GND encoder, GND 2 L298N, GND MPU-6050 | Mass chung | |
 
-> Arduino UNO chỉ có 18 chân I/O khả dụng (trừ D0/D1). 4 động cơ × 3 chân + 4 encoder + dừng khẩn + đo pin = **18 chân – dùng hết**.
+> Arduino UNO chỉ có 18 chân I/O khả dụng (trừ D0/D1). 4 động cơ × 3 chân + 4 encoder + 2 chân I2C (MPU-6050) = **18 chân – dùng hết**.
 > Vì vậy mỗi encoder chỉ nối **kênh A**; chiều quay được suy ra từ lệnh (firmware chỉ đổi chiều đếm khi bánh gần dừng nên không bị đếm sai lúc đảo chiều). Kênh B (C2) để trống.
 
 **Khuyến nghị:** điện trở 10 kΩ kéo xuống GND tại mỗi chân ENA/ENB để động cơ chắc chắn tắt trong lúc Arduino khởi động / nạp chương trình.
+
+### 2a. Con quay MPU-6050 ("la bàn" của robot) – nối ARDUINO
+
+![Sơ đồ đấu MPU-6050](img/so_do_mpu6050.png)
+
+| Chân module MPU-6050 (HW-123 / GY-521) | Nối tới Arduino UNO | Ghi chú |
+|---|---|---|
+| VCC | **5V** | module có ổn áp 3.3 V sẵn |
+| GND | **GND** | mass chung |
+| SCL | **A5** | I2C xung nhịp |
+| SDA | **A4** | I2C dữ liệu |
+| XDA, XCL | để trống | I2C phụ – không dùng |
+| AD0 | để trống | địa chỉ 0x68 (nối VCC → 0x69, khi đó sửa `IMU_I2C_ADDR`) |
+| INT | để trống | không dùng |
+
+* MPU-6050 = con quay 3 trục + gia tốc kế, **không có từ kế** → đo **góc quay tương đối** (0° = hướng lúc bật / mở main.py),
+  không bị khung sắt nhà xưởng làm lệch. Firmware tích phân tốc độ quay trục Z ở 50 Hz, tự bù độ trôi khi robot đứng yên.
+* Gắn module **nằm ngang** (chữ in hướng lên), cố định chắc, gần tâm robot; dây I2C ≤ 30 cm, xoắn cặp SDA/SCL với GND nếu được.
+* Bật nguồn / mở `main.py`: để robot **đứng yên ~1 s** (Arduino đo độ lệch 0 của con quay).
+* Nếu bo có đầu cắm trắng 4 chân thì vẫn nên hàn/cắm vào **hàng chân có in chữ** để chắc chắn đúng thứ tự VCC-GND-SCL-SDA.
+* Kiểm tra: `python tools/motor_test.py imu` → xoay robot trái 90° bằng tay → góc phải **tăng** ≈ 90.
 
 ## 3. L298N (×2)
 
@@ -114,17 +134,17 @@ Kiểm tra: `python tools/motor_test.py pattern` – lệnh "SANG TRÁI" phải 
 | Cổng CSI | – | Camera Module 2 (cáp dẹt 15 chân) | mặt tiếp xúc quay về phía cổng HDMI |
 | USB | – | Arduino UNO | `/dev/ttyACM0` (chính hãng) hoặc `/dev/ttyUSB0` (CH340) |
 | HDMI / DSI | – | Màn hình 5"–7" (800×480) | |
-| 1 | 3.3V | VCC la bàn GY-271 | |
-| 3 | GPIO2 SDA | SDA la bàn (và LCD 16x2 nếu có) | bật I2C trong raspi-config |
-| 5 | GPIO3 SCL | SCL la bàn (và LCD) | |
-| 6 | GND | GND la bàn | |
+| 3 | GPIO2 SDA | SDA LCD 16x2 I2C (nếu có) | bật I2C trong raspi-config |
+| 5 | GPIO3 SCL | SCL LCD 16x2 (nếu có) | |
+| 6 / 9 | GND | GND LCD / nút nhấn | |
 | 11 | GPIO17 | Nút START (NO → GND) | tùy chọn `GPIO_ENABLE` |
 | 13 | GPIO27 | Nút STOP (NO → GND) | tùy chọn |
 | 12 | GPIO18 | Còi 5 V qua transistor NPN | tùy chọn |
 | 2 / 4 | 5V | LCD 16x2 I2C (VCC) | LCD PCF8574 thường cần 5 V |
 
-**La bàn** (QMC5883L 0x0D / HMC5883L 0x1E): gắn trên cột nhựa cao ≥ 10–15 cm, xa động cơ, pin, L298N.
-Kiểm tra: `i2cdetect -y 1` phải thấy `0d` (hoặc `1e`; LCD là `27`).
+> Con quay MPU-6050 nối **Arduino** (mục 2a), KHÔNG nối Pi. Chỉ khi thay bằng la bàn từ GY-271 (QMC5883L/HMC5883L)
+> mới nối vào I2C của Pi (3.3V chân 1, SDA chân 3, SCL chân 5, GND chân 6) và đặt `COMPASS_ENABLE = True`, `IMU_ENABLE = False`.
+> Kiểm tra LCD: `i2cdetect -y 1` phải thấy `27` (hoặc `3f`).
 
 ## 7. Camera
 

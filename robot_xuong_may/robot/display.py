@@ -278,7 +278,8 @@ class Display:
             col = (239, 83, 80) if vb < self.cfg.BATTERY_WARN_V else (200, 230, 201)
             lines.append((f"Pin: {vb:.2f} V" + ("  (YẾU!)" if vb < self.cfg.BATTERY_WARN_V else ""), col))
         yaw = info.get("yaw")
-        lines.append((f"Hướng la bàn: {yaw:.0f}°" if yaw is not None else "Hướng la bàn: --", (200, 200, 200)))
+        lab = info.get("yaw_label", "Góc quay")
+        lines.append((f"{lab}: {yaw:.0f}°" if yaw is not None else f"{lab}: --", (200, 200, 200)))
         rpm = info.get("rpm")
         if rpm:
             lines.append(("RPM  FL {:+.0f}  FR {:+.0f}".format(rpm[0], rpm[1]), (200, 200, 200)))

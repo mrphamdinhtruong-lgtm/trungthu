@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-CÔNG CỤ THỬ ĐỘNG CƠ / NHẬN DẠNG / CHỈNH SAC-DOB (chạy trên Pi, TẮT main.py trước)
+CÔNG CỤ THỬ ĐỘNG CƠ / CON QUAY / NHẬN DẠNG / CHỈNH SAC-DOB
+(chạy trên Pi hoặc laptop nối Arduino, TẮT main.py trước; Windows thêm --port COM5 TRƯỚC tên lệnh)
 
   python tools/motor_test.py dir                 # quay lần lượt từng bánh -> kiểm tra chiều quay & encoder
   python tools/motor_test.py count --turns 10    # quay tay bánh 10 vòng -> kiểm tra GEAR_RATIO
@@ -10,6 +11,7 @@ CÔNG CỤ THỬ ĐỘNG CƠ / NHẬN DẠNG / CHỈNH SAC-DOB (chạy trên Pi,
   python tools/motor_test.py step --modes 0 1 2  # đáp ứng bậc thang PI / SAC / SAC+DOB -> CSV + đồ thị
   python tools/motor_test.py tune gie 8          # chỉnh tham số khi đang chạy (mất khi reset Arduino)
   python tools/motor_test.py params              # xem tham số hiện tại trên Arduino
+  python tools/motor_test.py imu                 # thử con quay MPU-6050: xoay robot TRÁI 90° bằng tay
 
 AN TOÀN: kê robot lên (bánh không chạm sàn) cho dir/ident/step, trừ khi dùng --on-floor.
 """
@@ -282,6 +284,46 @@ def cmd_params(link, args):
         print(f"  {k:6s} = {v:g}")
 
 
+def cmd_imu(link, args):
+    """Thử con quay MPU-6050 nối Arduino (A4/A5): kiểm tra dây + chiều dấu IMU_YAW_SIGN."""
+    who = (link.info or {}).get("imu", 0)
+    if not cfg.IMU_ENABLE:
+        raise SystemExit("IMU_ENABLE = False trong robot/config.py -> bật lên rồi nạp lại Arduino")
+    if not who:
+        raise SystemExit("Arduino KHÔNG thấy MPU-6050. Kiểm tra: VCC->5V, GND->GND, SDA->A4, SCL->A5 "
+                         "(không đảo SDA/SCL), rồi nhấn RESET trên Arduino / chạy lại lệnh này.")
+    print(f"Thấy MPU-6050: WHO_AM_I = 0x{who:02X}"
+          + ("" if who == 0x68 else "  (chip tương thích/nhái – vẫn dùng được nếu góc đo đúng)"))
+    input("Đặt robot ĐỨNG YÊN trên sàn, nhấn Enter để đo độ lệch 0 ...")
+    link.acks.clear()
+    link.gyro_zero()
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 2.0 and not any(a[:2] in (["OK", "G"], ["ERR", "G_IMU"], ["ERR", "G_MOVING"])
+                                                  for a in link.acks):
+        time.sleep(0.05)
+    print("Phản hồi:", ",".join(list(link.acks)[-1]) if link.acks else "không có")
+    print(f"Trong {args.seconds:.0f} s: xoay robot bằng tay SANG TRÁI (ngược chiều kim đồng hồ, nhìn từ trên) "
+          "khoảng 90° rồi giữ yên.")
+    yaw = None
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < args.seconds:
+        tel = link.telemetry
+        yaw = tel.yaw if tel.yaw_ok else None
+        print(f"\r  góc quay = {yaw:6.1f}°   " if yaw is not None else "\r  góc quay = --- (mất con quay)", end="")
+        time.sleep(0.2)
+    print()
+    if yaw is None:
+        raise SystemExit("Không đọc được góc – kiểm tra dây I2C (lỏng / quá dài > 30 cm)")
+    d = (yaw + 180.0) % 360.0 - 180.0
+    if 45 <= d <= 135:
+        print(f"ĐÚNG: quay trái ≈ {d:.0f}° -> góc TĂNG. Giữ IMU_YAW_SIGN = {cfg.IMU_YAW_SIGN}")
+    elif -135 <= d <= -45:
+        print(f"NGƯỢC DẤU: quay trái mà góc GIẢM ({d:.0f}°). Sửa robot/config.py: IMU_YAW_SIGN = "
+              f"{-cfg.IMU_YAW_SIGN} rồi nạp lại Arduino (python flash_arduino.py)")
+    else:
+        print(f"Góc đo được {d:.0f}° – chưa xoay đủ ~90° hoặc module gắn không nằm ngang. Thử lại.")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", default=None)
@@ -297,12 +339,13 @@ def main():
     p.add_argument("--on-floor", action="store_true")
     p = sub.add_parser("tune"); p.add_argument("name"); p.add_argument("value", type=float)
     sub.add_parser("params")
+    p = sub.add_parser("imu"); p.add_argument("--seconds", type=float, default=15.0)
     args = ap.parse_args()
 
     link = connect(args.port)
     try:
         {"dir": cmd_dir, "count": cmd_count, "pattern": cmd_pattern, "ident": cmd_ident,
-         "step": cmd_step, "tune": cmd_tune, "params": cmd_params}[args.cmd](link, args)
+         "step": cmd_step, "tune": cmd_tune, "params": cmd_params, "imu": cmd_imu}[args.cmd](link, args)
     except KeyboardInterrupt:
         print("\nDừng.")
     finally:

@@ -7,12 +7,13 @@ Học được:
   * Pi và Arduino "nói chuyện" bằng các DÒNG CHỮ qua cổng nối tiếp (serial, 115200 baud):
       Pi gửi      W,30,30,30,30   = 4 bánh quay 30 vòng/phút
                   S               = dừng
-      Arduino gửi T,ms,rpm1..4,...= tốc độ đo được (20 lần/giây)
+      Arduino gửi T,ms,rpm1..4,...,góc = tốc độ đo được + góc quay con quay MPU-6050 (20 lần/giây)
   * Pi phải gửi lệnh ĐỀU ĐẶN; ngừng gửi quá 0.5 s thì Arduino tự dừng động cơ (an toàn).
 
 Chạy:
   python examples/03_gui_lenh_arduino.py --fake                 # Arduino GIẢ, không cần phần cứng (Linux/Pi/macOS)
   python examples/03_gui_lenh_arduino.py --port /dev/ttyACM0    # Arduino thật (đã nạp firmware)
+  python examples\03_gui_lenh_arduino.py --port COM5           # Arduino thật cắm laptop Windows
 !! Với Arduino thật: KÊ ROBOT LÊN cho bánh quay tự do trước khi chạy.
 """
 import argparse
@@ -41,6 +42,12 @@ if args.fake:
 
 link = SerialLink(args.port, cfg.SERIAL_BAUD).open()   # 1) mở cổng, chờ Arduino trả lời
 print("Thông tin firmware:", link.info)
+if link.info is None:
+    print("!! Arduino không trả lời – đã nạp firmware chưa? (python flash_arduino.py --port ...)")
+elif link.info.get("imu"):
+    print(f"Con quay MPU-6050: CÓ (WHO_AM_I = 0x{link.info['imu']:02X})")
+else:
+    print("Con quay MPU-6050: KHÔNG thấy (kiểm tra SDA->A4, SCL->A5, VCC->5V, GND) – bánh vẫn chạy được")
 try:
     print(f"Gửi W,{args.rpm:.0f},... trong 2 giây (gửi 20 lần/giây):")
     t0 = time.monotonic()
@@ -53,6 +60,7 @@ try:
     time.sleep(1.0)
     tel = link.telemetry
     print("  tốc độ:", [round(x) for x in tel.rpm], "| cờ mất lệnh:", tel.cmd_timeout)
+    print("  góc quay (MPU-6050):", f"{tel.yaw:.1f}°" if tel.yaw_ok else "--")
 finally:
     link.stop()                                          # 4) luôn gửi lệnh dừng khi thoát
     link.close()

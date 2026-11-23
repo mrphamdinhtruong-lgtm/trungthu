@@ -4,7 +4,7 @@
 #ifndef CONFIG_GEN_H
 #define CONFIG_GEN_H
 
-#define FW_CONFIG_HASH         "d9e148d0"
+#define FW_CONFIG_HASH         "b4960a64"
 
 // ---- Truyền thông & thời gian ----
 #define SERIAL_BAUD            115200UL
@@ -31,6 +31,12 @@
 #define ESTOP_ENABLE           0
 #define BATT_ENABLE            0
 #define BATT_DIVIDER_RATIO     3.1276595744680846f
+
+// ---- Con quay MPU-6050 (I2C: SDA = A4, SCL = A5) ----
+#define IMU_ENABLE             1
+#define IMU_I2C_ADDR           0x68
+#define IMU_YAW_SIGN           1.0f
+#define IMU_STILL_DPS          1.0f
 
 // ---- Bộ điều khiển SAC + DOB ----
 #define CTRL_MODE_DEFAULT      2

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-HIỆU CHUẨN LA BÀN (QMC5883L / HMC5883L trên I2C của Pi)
+THỬ & HIỆU CHUẨN LA BÀN (QMC5883L / QMC5883P / HMC5883L trên I2C của Raspberry Pi – chạy TRÊN PI)
 
-  python tools/compass_calibrate.py            # robot tự quay chậm 2 vòng (cần Arduino + động cơ)
-  python tools/compass_calibrate.py --by-hand  # tự xoay robot bằng tay NGƯỢC chiều kim đồng hồ
+  python tools/compass_calibrate.py --test     # BƯỚC 1: kiểm tra dây – in loại chip, địa chỉ, số đo, hướng
+  python tools/compass_calibrate.py            # BƯỚC 2: robot tự quay chậm 2 vòng (cần Arduino + động cơ)
+  python tools/compass_calibrate.py --by-hand  #         hoặc tự xoay robot bằng tay NGƯỢC chiều kim đồng hồ
 
 Kết quả lưu vào compass_cal.json (offset từ trường cứng, hệ số co giãn, chiều quay).
 Làm ở đúng nơi robot chạy (trong xưởng), tránh xa vật sắt lớn.
@@ -28,15 +29,25 @@ from robot.kinematics import MecanumKinematics  # noqa: E402
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--by-hand", action="store_true", help="xoay robot bằng tay thay vì cho robot tự quay")
-    ap.add_argument("--seconds", type=float, default=24.0)
+    ap.add_argument("--seconds", type=float, default=None, help="thời gian đo (mặc định: hiệu chuẩn 24 s, --test 15 s)")
     ap.add_argument("--wz", type=float, default=0.55, help="tốc độ quay (rad/s) khi robot tự quay")
     ap.add_argument("--port", default=None)
+    ap.add_argument("--test", action="store_true", help="chỉ đọc thử la bàn (kiểm tra dây), không hiệu chuẩn")
     args = ap.parse_args()
 
     comp = Compass(cfg.COMPASS_TYPE, cfg.COMPASS_I2C_BUS, cfg.COMPASS_CAL_FILE)
-    from smbus2 import SMBus
-    comp._bus = SMBus(cfg.COMPASS_I2C_BUS)
-    comp._init_chip()
+    try:
+        comp.open()
+    except ImportError:
+        raise SystemExit("Thiếu thư viện smbus2 (pip install smbus2) – lệnh này chạy trên Raspberry Pi")
+    except (OSError, RuntimeError) as exc:
+        raise SystemExit(f"LỖI LA BÀN: {exc}\n"
+                         "  -> bật I2C: sudo raspi-config -> Interface Options -> I2C, khởi động lại\n"
+                         "  -> xem địa chỉ: i2cdetect -y 1  (la bàn: 0d / 2c / 1e)")
+    print(f"Tìm thấy la bàn {comp.chip.upper()} tại địa chỉ 0x{comp.addr:02X}")
+    if args.test:
+        return test_read(comp, args.seconds or 15.0)
+    args.seconds = args.seconds or 24.0
 
     link = None
     rpm = None
@@ -93,5 +104,40 @@ def main():
         print("  !! Từ trường méo nhiều – dời la bàn xa động cơ / pin / khung sắt")
 
 
+def test_read(comp: Compass, seconds: float) -> int:
+    """In số đo 5 lần/giây. Xoay robot (hoặc module) bằng tay: X, Y phải đổi, hướng phải chạy 0..360."""
+    print("Xoay robot từ từ bằng tay. Ctrl+C để dừng.")
+    print(f"{'X':>7s} {'Y':>7s} {'Z':>7s} {'|B|':>7s}  hướng (độ)")
+    t0, n, bad = time.monotonic(), 0, 0
+    xs, ys = [], []
+    try:
+        while time.monotonic() - t0 < seconds:
+            try:
+                x, y, z = comp.read_raw()
+            except OSError as exc:
+                bad += 1
+                print("  lỗi đọc I2C:", exc)
+                time.sleep(0.2)
+                continue
+            n += 1
+            xs.append(x)
+            ys.append(y)
+            mag = math.sqrt(x * x + y * y + z * z)
+            print(f"{x:7.0f} {y:7.0f} {z:7.0f} {mag:7.0f}  {comp.compute_yaw(x, y):6.1f}")
+            time.sleep(0.2)
+    except KeyboardInterrupt:
+        pass
+    if n == 0:
+        print("!! Không đọc được lần nào – kiểm tra dây SDA/SCL")
+        return 1
+    if max(xs) == min(xs) and max(ys) == min(ys):
+        print("!! Số đo đứng yên – chip chưa đo (thử đặt COMPASS_TYPE đúng loại trong robot/config.py)")
+        return 1
+    print(f"OK: {n} lần đọc, {bad} lỗi. Tiếp theo: python tools/compass_calibrate.py --by-hand")
+    if not comp.cal_path.exists():
+        print("   (chưa có compass_cal.json nên hướng ở trên CHƯA chính xác – hiệu chuẩn xong mới đúng)")
+    return 0
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

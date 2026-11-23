@@ -11,6 +11,7 @@ Chỉ chạy trên Linux / macOS (cần pty).
 """
 from __future__ import annotations
 
+import math
 import os
 import select
 import threading
@@ -20,7 +21,7 @@ from typing import List, Optional
 
 class FakeArduino:
     def __init__(self, cfg, config_hash: str, tau: float = 0.12, drop_after_s: Optional[float] = None,
-                 estop_at_s: Optional[float] = None, vbat: float = 12.3):
+                 estop_at_s: Optional[float] = None, vbat: float = 12.3, imu: bool = True):
         import tty
         self.cfg = cfg
         self.hash = config_hash
@@ -37,6 +38,10 @@ class FakeArduino:
         self.estop = False
         self.mode = int(cfg.CONTROLLER_MODE)
         self.vbat = vbat
+        self.imu = imu                               # có con quay MPU-6050 (giả) không
+        self.yaw = 0.0
+        from robot.kinematics import MecanumKinematics
+        self._kin = MecanumKinematics.from_config(cfg)
         self.params = {"gie": cfg.SAC_GAMMA_I[0], "taum": cfg.SAC_TAU_M, "kn": cfg.DOB_KN}
         self.debug_motor = -1
         self.rx_lines: List[str] = []
@@ -68,7 +73,8 @@ class FakeArduino:
         return int((time.monotonic() - self._t0) * 1000)
 
     def _info(self) -> str:
-        return f"I,ROBOT_FW,fake,{self.hash},{int(self.cfg.CONTROL_PERIOD_MS)},{self.mode}"
+        return (f"I,ROBOT_FW,fake,{self.hash},{int(self.cfg.CONTROL_PERIOD_MS)},{self.mode},"
+                f"{0x68 if self.imu else 0}")
 
     def _send(self, line: str) -> None:
         if self.dropped:
@@ -127,6 +133,14 @@ class FakeArduino:
         elif c == "D" and vals:
             self.debug_motor = int(vals[0]) if 0 <= vals[0] <= 3 else -1
             self._send(f"A,OK,D,{self.debug_motor}")
+        elif c == "G":
+            if any(abs(x) > 2.0 for x in self.rpm) or any(abs(x) > 1e-3 for x in self.target):
+                self._send("A,ERR,G_MOVING")
+            elif not self.imu:
+                self._send("A,ERR,G_IMU")
+            else:
+                self.yaw = 0.0
+                self._send("A,OK,G")
         elif c == "?":
             self._send(self._info())
         else:
@@ -170,9 +184,11 @@ class FakeArduino:
                 self.rpm[i] += a * (goal[i] - self.rpm[i])
                 if self.estop:
                     self.rpm[i] *= 0.5
+            self.yaw = (self.yaw + math.degrees(self._kin.forward(self.rpm)[2]) * dt) % 360.0
             if k % tel_every == 0:
                 flags = (1 if self.estop else 0) | (2 if timeout else 0) | (4 if self.open_loop else 0)
+                flags |= 8 if self.imu else 0
                 u = [x / self.cfg.MOTOR_RPM_NOMINAL for x in self.rpm]
-                self._send("T,%d,%s,%s,%d,%d,%.2f" % (
+                self._send("T,%d,%s,%s,%d,%d,%.2f,%.1f" % (
                     self._ms(), ",".join("%.1f" % x for x in self.rpm), ",".join("%.2f" % x for x in u),
-                    flags, self.mode, self.vbat))
+                    flags, self.mode, self.vbat, self.yaw if self.imu else 0.0))

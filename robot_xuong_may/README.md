@@ -29,7 +29,7 @@ Robot 4 bánh mecanum tự đi đến **TRẠM 1 → TRẠM 2 → TRẠM 3**, d�
 | Động cơ | 4 × **JGB37-520 12 V 110 RPM có encoder Hall** (11 xung/vòng, hộp số ~1:90) – dùng kênh A |
 | Bánh | 4 × **mecanum 97 mm** (bố trí chữ X) |
 | Nguồn | Pin **LiPo 3S** (11.1 V) + mạch hạ áp **5 V ≥ 3 A** riêng cho Pi (cần bổ sung) |
-| La bàn | GY-271 **QMC5883L** (hoặc HMC5883L) trên **I2C của Pi** – gợi ý hướng & giữ hướng |
+| Con quay ("la bàn") | **MPU-6050** (module HW-123 / GY-521) nối **I2C của Arduino** (SDA→A4, SCL→A5) – đo góc quay tương đối, giữ hướng, đo hành trình |
 | HMI | Màn hình HDMI/DSI 5"–7" 800×480 gắn Pi (giao diện tiếng Việt có dấu) + LCD 16×2 I2C (tùy chọn) |
 | Thị giác | **YOLO11n** (Ultralytics) – 1 mô hình chung, lớp `0=tram_1, 1=tram_2, 2=tram_3`, ảnh 416, chạy **`best.onnx` bằng onnxruntime** (không cần torch trên Pi) |
 | Truyền thông | Pi ↔ Arduino: **USB-Serial 115200 8N1, giao thức ASCII** (xem đầu `robot_firmware.ino`) |
@@ -52,16 +52,17 @@ flowchart LR
         CAM --> FLOOR["Sàn trống<br/>(gạch / bê tông)"]
         CAM --> ROUTE["Ảnh mốc<br/>lộ trình đã dạy"]
         YOLO & FLOOR & ROUTE --> MIS["Máy trạng thái<br/>+ bộ lái cục bộ"]
-        CMP["La bàn I2C"] --> MIS
         MIS --> KIN["Động học<br/>mecanum"]
         MIS --> HMI["Màn hình HMI<br/>tiếng Việt"]
     end
     subgraph ARD["Arduino UNO – C++ (nạp bằng Python)"]
         SAC["4 × SAC + DOB<br/>50 Hz"] --> L298["2 × L298N"] --> MOT["4 × JGB37-520"]
         MOT --> ENC["Encoder"] --> SAC
+        IMU["MPU-6050<br/>I2C A4/A5"] --> YAW["Tích phân<br/>góc quay"]
     end
     KIN -- "W,fl,fr,rl,rr (RPM)" --> SAC
-    SAC -- "T,rpm,u,cờ,pin" --> MIS
+    SAC -- "T,rpm,u,cờ,pin,góc" --> MIS
+    YAW -.-> MIS
 ```
 
 ## 3. Cấu trúc thư mục
@@ -115,7 +116,7 @@ Chạy thử **không cần phần cứng** (laptop/Pi): `python main.py --sim` 
 | 5. Lắp mecanum | `python tools/motor_test.py pattern` | đi ngang không xoay |
 | 6. Nhận dạng động cơ | `python tools/motor_test.py ident` | ghi `PWM_DEADZONE`, `DOB_KN`, `DOB_TAU_N` vào config, nạp lại |
 | 7. Đáp ứng SAC-DOB | `python tools/motor_test.py step --modes 0 1 2` | đồ thị `logs/step_*.png` – dùng cho báo cáo |
-| 8. La bàn | `python tools/compass_calibrate.py` | lưu `compass_cal.json` |
+| 8. Con quay MPU-6050 | `python tools/motor_test.py imu` – xoay robot trái 90° bằng tay | "ĐÚNG: quay trái ≈ 90° -> góc TĂNG" (ngược dấu → `IMU_YAW_SIGN = -1`, nạp lại) |
 | 9. YOLO | huấn luyện theo `docs/TRAINING.md`, thử `python training/test_model.py` | nhận đúng trạm, ước lượng khoảng cách đúng ±10 % |
 | 10. Sàn | `python main.py`, chế độ tay (M), lái quanh xưởng | không báo vật cản giả; đặt thùng thì thấy chấm đỏ đúng chỗ |
 | 11. Dạy lộ trình (nếu trạm khuất) | M → T → lái tới trạm → T (mỗi chặng) | "Lộ trình đã dạy: 0→1, 1→2, 2→3, 3→1" |
@@ -157,7 +158,7 @@ Chạy thử **không cần phần cứng** (laptop/Pi): `python main.py --sim` 
 | Bước | Trạng thái | Điều kiện vào | Hành động | Điều kiện ra |
 |---|---|---|---|---|
 | 1 | FOLLOW | START / rời trạm, **có** lộ trình đã dạy cho chặng | bám ảnh mốc, lách vật cản | thấy biển trạm < 2.5 m (3 khung) → 3; hết mốc / mất dấu → 2 |
-| 2 | SEARCH | START / rời trạm, **không** có lộ trình | (xoay về hướng la bàn gợi ý) quay tìm biển trạm | thấy biển 3 khung → 3; quá 30 s → LOST |
+| 2 | SEARCH | START / rời trạm, **không** có lộ trình | (xoay về góc gợi ý `heading_deg` nếu có) quay tìm biển trạm | thấy biển 3 khung → 3; quá 30 s → LOST |
 | 3 | APPROACH | thấy biển trạm đích | căn giữa + tiến, giảm tốc từ 1.2 m, lách vật cản | ≤ 0.45 m & lệch tâm ≤ 0.25 (3 khung) → 4; mất dấu 1.5 s → 2 |
 | 4 | WAIT | đã đến trạm | dừng, còi 2 tiếng, đếm ngược 15 s | hết giờ / phím N → trạm kế tiếp (1 hoặc 2) |
 | – | OBSTACLE | vật cản trong làn < 0.8 m (≥ 2 khung) hoặc không còn khe đi | dừng, còi dài | đường trống liên tục 1.5 s → về bước trước |
@@ -167,7 +168,8 @@ Chạy thử **không cần phần cứng** (laptop/Pi): `python main.py --sim` 
 | Liên động | Thực hiện ở | Tác động |
 |---|---|---|
 | Nút dừng khẩn nấm NC cắt nguồn động cơ | **phần cứng** | mất nguồn L298N ngay lập tức |
-| Tiếp điểm NC dừng khẩn → A4 (tùy chọn) | Arduino | phanh 4 động cơ, chốt, chỉ xóa bằng lệnh `E,0` khi nút đã nhả |
+| Dừng khẩn phần mềm (phím / nút STOP / lệnh `E,1`) | Arduino | phanh 4 động cơ, chốt, chỉ xóa bằng lệnh `E,0` (A4 đã dùng cho MPU-6050 nên không còn chân báo nút về Arduino) |
+| Mất con quay MPU-6050 | Arduino + Pi | cờ "góc hợp lệ" = 0, Pi báo cảnh báo, robot vẫn chạy (không giữ hướng); Arduino tự thử kết nối lại mỗi 2 s |
 | Mất lệnh từ Pi > 500 ms | Arduino | tốc độ đặt = 0 |
 | Watchdog AVR 1 s | Arduino | treo chương trình → tự reset, động cơ tắt khi khởi động |
 | Mất telemetry Arduino > 1 s / mất ảnh > 2 s | Pi | LỖI HỆ THỐNG, dừng; khắc phục xong phải nhấn START |
@@ -229,7 +231,8 @@ dừng khẩn, xử lý lệnh sai (`tests/test_firmware_sim.py`). **Chưa chạ
 * YOLO chỉ nhận ra loại vật **đã huấn luyện**; nhận diện sàn bổ sung vật lạ nhưng **không** tách được vật cùng màu sàn.
 * Sàn bóng như gương, ánh sáng nhấp nháy mạnh, bụi bám ống kính làm giảm độ tin cậy → lau camera, kính phân cực.
 * Dạy–lặp lộ trình phụ thuộc cảnh vật: dời máy/kệ nhiều phải dạy lại.
-* La bàn trong xưởng có khung thép bị nhiễu → chỉ dùng gợi ý hướng, không dùng để định vị.
+* MPU-6050 không có từ kế: góc là **tương đối** (0° = hướng lúc khởi động) và trôi chậm khi chạy lâu
+  (firmware tự bù độ trôi mỗi lần robot dừng) → dùng để giữ hướng ngắn hạn, không dùng để định vị tuyệt đối.
 * Kết quả SAC-DOB trong tài liệu là **mô phỏng**; số liệu thật lấy bằng `tools/motor_test.py step`.
 
 ## 13. Tài liệu chi tiết

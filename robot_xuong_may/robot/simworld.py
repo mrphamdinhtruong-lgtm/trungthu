@@ -31,6 +31,9 @@ class SimLink:
         self.port = "SIM"
         self._target = [0.0] * 4
         self._rpm = [0.0] * 4
+        self._yaw = 0.0                                  # con quay MPU-6050 giả (độ, dương = quay trái)
+        from robot.kinematics import MecanumKinematics
+        self._kin = MecanumKinematics.from_config(cfg)
         self._estop = False
         self._last_cmd = -1e9
         self._clock = 0.0
@@ -65,12 +68,15 @@ class SimLink:
             a = clamp(dt / self.tau, 0.0, 1.0)
             for i in range(4):
                 self._rpm[i] += a * (self._target[i] - self._rpm[i])
+            self._yaw = (self._yaw + math.degrees(self._kin.forward(self._rpm)[2]) * dt) % 360.0
+            imu = bool(getattr(self.cfg, "IMU_ENABLE", False))
             flags = (1 if self._estop else 0) | (2 if self._clock - self._last_cmd > self.cfg.CMD_TIMEOUT_MS / 1000.0 else 0)
+            flags |= 8 if imu else 0
             vbat = max(10.9, self.telemetry.vbat - 1e-5 * dt)
             self.telemetry = Telemetry(t_ms=int(self._clock * 1000), rpm=list(self._rpm),
                                        u=[x / self.cfg.MOTOR_RPM_NOMINAL for x in self._rpm],
                                        flags=flags, mode=self.telemetry.mode, vbat=vbat,
-                                       rx_time=time.monotonic())
+                                       yaw=self._yaw if imu else None, rx_time=time.monotonic())
 
     # ---- API giống SerialLink ----
     def alive(self, timeout: float = 1.0) -> bool:
@@ -110,6 +116,10 @@ class SimLink:
 
     def request_info(self) -> None:
         pass
+
+    def gyro_zero(self) -> None:
+        with self._lock:
+            self._yaw = 0.0
 
 
 class SimWorld:

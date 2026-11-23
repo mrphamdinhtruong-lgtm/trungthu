@@ -4,7 +4,8 @@
  * =====================================================================
  *  Nhiệm vụ: nhận tốc độ đặt 4 bánh mecanum từ Raspberry Pi 4 qua USB,
  *            điều khiển tốc độ từng động cơ JGB37-520 bằng SAC + DOB,
- *            gửi tốc độ đo / điện áp pin / trạng thái về Pi.
+ *            đọc con quay MPU-6050 (góc quay robot),
+ *            gửi tốc độ đo / góc quay / trạng thái về Pi.
  *
  *  KHÔNG mở file này bằng Arduino IDE để sửa thông số!
  *  -> Sửa robot/config.py rồi chạy:  python flash_arduino.py
@@ -18,8 +19,9 @@
  *   A3    : Encoder kênh A – bánh RR (PCINT11)
  *   L298N #1 (trước): ENA=D5  IN1=D4  IN2=D7  (FL) | ENB=D6  IN3=D8  IN4=D11 (FR)
  *   L298N #2 (sau)  : ENA=D9  IN1=D12 IN2=D13 (RL) | ENB=D10 IN3=A0  IN4=A1  (RR)
- *   A4    : Nút dừng khẩn NC về GND (tùy chọn, ESTOP_ENABLE)
- *   A5    : Đo áp pin 3S qua cầu phân áp 10k/4.7k (tùy chọn, BATT_ENABLE)
+ *   A4    : SDA của MPU-6050 (IMU_ENABLE)  | hoặc nút dừng khẩn NC về GND (ESTOP_ENABLE)
+ *   A5    : SCL của MPU-6050 (IMU_ENABLE)  | hoặc đo áp pin qua cầu phân áp 10k/4.7k (BATT_ENABLE)
+ *   5V/GND: VCC/GND của MPU-6050 (module có ổn áp 3.3 V sẵn)
  *
  *  ---------------------- GIAO THỨC (ASCII, kết thúc '\n') ------------
  *   Pi -> Arduino
@@ -32,11 +34,12 @@
  *     P,ten,giatri    chỉnh tham số khi đang chạy (xem setParam), vd: P,gie,8
  *     Q               in toàn bộ tham số
  *     D,i             gửi dữ liệu debug chi tiết bánh i mỗi chu kỳ (-1 = tắt)
+ *     G               đo lại độ lệch 0 con quay + đặt góc = 0 (robot phải đứng yên, mất ~0.5 s)
  *     ?               thông tin firmware
  *   Arduino -> Pi
- *     I,ROBOT_FW,ver,hash,Ts_ms,mode
- *     T,ms,rpm0..3,u0..3,flags,mode,vbat      (mỗi TELEMETRY_PERIOD_MS)
- *        flags: bit0 = dừng khẩn, bit1 = mất lệnh (timeout), bit2 = vòng hở
+ *     I,ROBOT_FW,ver,hash,Ts_ms,mode,imu     imu = mã WHO_AM_I của MPU (0 = không thấy / tắt)
+ *     T,ms,rpm0..3,u0..3,flags,mode,vbat,yaw  (mỗi TELEMETRY_PERIOD_MS; yaw độ 0..360, dương = quay trái)
+ *        flags: bit0 = dừng khẩn, bit1 = mất lệnh (timeout), bit2 = vòng hở, bit3 = góc yaw hợp lệ
  *     X,ms,i,ref_rpm,ym_rpm,y_rpm,u,dhat,Ke,Kx,Ku   (khi bật D,i)
  *     A,OK,... | A,ERR,...   phản hồi lệnh
  *     P,ten,giatri           (trả lời lệnh Q)
@@ -48,8 +51,14 @@
 #include <string.h>
 #include "config_gen.h"
 #include "sac_dob.h"
+#if IMU_ENABLE
+#include <Wire.h>
+#endif
+#if IMU_ENABLE && (ESTOP_ENABLE || BATT_ENABLE)
+#error "A4/A5 dang dung cho MPU-6050 (I2C) -> tat ESTOP_INPUT_ENABLE va BATTERY_SENSE_ENABLE trong robot/config.py"
+#endif
 
-#define FW_VERSION "1.0.0"
+#define FW_VERSION "1.1.0"
 #define NUM_MOTORS 4
 
 // ------------------------- Chân -------------------------------------
@@ -73,6 +82,7 @@ static const bool MOTOR_INV[NUM_MOTORS]  = {MOTOR_INVERT_FL, MOTOR_INVERT_FR,
 #define FLAG_ESTOP       0x01
 #define FLAG_TIMEOUT     0x02
 #define FLAG_OPENLOOP    0x04
+#define FLAG_YAW_OK      0x08
 
 // ------------------------- Encoder (ngắt) ---------------------------
 volatile int32_t encCount[NUM_MOTORS] = {0, 0, 0, 0};
@@ -119,6 +129,132 @@ uint32_t lastStepUs = 0;
 
 char rxBuf[64];
 uint8_t rxLen = 0;
+
+// =====================================================================
+//  CON QUAY MPU-6050 (I2C) – tích phân tốc độ quay trục Z -> góc yaw
+// =====================================================================
+#define MPU_PWR_MGMT_1   0x6B
+#define MPU_SMPLRT_DIV   0x19
+#define MPU_CONFIG       0x1A
+#define MPU_GYRO_CONFIG  0x1B
+#define MPU_GYRO_ZOUT_H  0x47
+#define MPU_WHO_AM_I     0x75
+#define GYRO_LSB_PER_DPS 131.0f            // dải ±250 °/s
+#define IMU_STILL_STEPS  25                 // đứng yên >= 0.5 s mới hiệu chỉnh độ trôi
+#define IMU_STILL_LONG   100                // đứng yên >= 2 s: nới ngưỡng ×5 (sửa độ lệch 0 đo sai lúc khởi động)
+#define IMU_MAX_ERR      10                 // lỗi đọc liên tiếp -> báo mất con quay
+
+bool imuOk = false;
+uint8_t imuWho = 0;
+uint8_t imuErr = 0;
+uint8_t imuStill = 0;
+uint16_t imuRetry = 0;
+float gyroBias = 0.0f;                      // độ lệch 0 (LSB)
+float yawDeg = 0.0f;                        // góc quay (độ), dương = quay trái (ngược chiều kim đồng hồ)
+
+#if IMU_ENABLE
+bool mpuWrite(uint8_t reg, uint8_t val) {
+  Wire.beginTransmission(IMU_I2C_ADDR);
+  Wire.write(reg);
+  Wire.write(val);
+  return Wire.endTransmission() == 0;
+}
+
+bool mpuRead(uint8_t reg, uint8_t* buf, uint8_t n) {
+  Wire.beginTransmission(IMU_I2C_ADDR);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) return false;
+  if (Wire.requestFrom((uint8_t)IMU_I2C_ADDR, n) != n) return false;
+  for (uint8_t k = 0; k < n; k++) buf[k] = (uint8_t)Wire.read();
+  return true;
+}
+
+bool mpuGyroZ(int16_t* gz) {
+  uint8_t b[2];
+  if (!mpuRead(MPU_GYRO_ZOUT_H, b, 2)) return false;
+  *gz = (int16_t)(((uint16_t)b[0] << 8) | b[1]);
+  return true;
+}
+
+/* Cấu hình MPU-6050: thức dậy, đồng hồ PLL, lọc 44 Hz, 100 mẫu/s, dải ±250 °/s */
+bool mpuConfigure() {
+  if (!mpuWrite(MPU_PWR_MGMT_1, 0x01)) return false;
+  if (!mpuWrite(MPU_SMPLRT_DIV, 9)) return false;
+  if (!mpuWrite(MPU_CONFIG, 0x03)) return false;
+  return mpuWrite(MPU_GYRO_CONFIG, 0x00);
+}
+
+/* Đo độ lệch 0 của con quay (robot phải đứng yên). Trả về false nếu đọc lỗi. */
+bool imuCalibrate() {
+  int32_t sum = 0;
+  uint8_t n = 0;
+  for (uint8_t k = 0; k < 100; k++) {
+    int16_t g;
+    if (mpuGyroZ(&g)) {
+      sum += g;
+      n++;
+    }
+    delay(5);
+#if HW_WATCHDOG
+    wdt_reset();
+#endif
+  }
+  if (n < 50) return false;
+  gyroBias = (float)sum / (float)n;
+  yawDeg = 0.0f;
+  return true;
+}
+
+void imuBegin() {
+  Wire.begin();
+  Wire.setClock(100000UL);                  // 100 kHz: chịu được dây dupont dài & nhiễu động cơ
+#if defined(WIRE_HAS_TIMEOUT)
+  Wire.setWireTimeout(3000, true);          // dây I2C lỗi -> không treo vòng điều khiển
+#endif
+  imuOk = false;
+  if (!mpuWrite(MPU_PWR_MGMT_1, 0x80)) return;   // reset chip
+  delay(100);
+  if (!mpuConfigure()) return;
+  uint8_t who = 0;
+  if (mpuRead(MPU_WHO_AM_I, &who, 1)) imuWho = who;   // 0x68 chính hãng; bản nhái có thể 0x70/0x72/0x98
+  delay(50);
+  imuOk = imuCalibrate();
+}
+
+/* Gọi mỗi chu kỳ điều khiển. still = robot đứng yên (không lệnh, bánh không quay) */
+void imuUpdate(float dt, bool still) {
+  if (!imuOk) {                             // mất con quay -> thử kết nối lại mỗi ~2 s (giữ độ lệch cũ)
+    if (++imuRetry >= 100) {
+      imuRetry = 0;
+      if (mpuConfigure()) {
+        imuOk = true;
+        imuErr = 0;
+      }
+    }
+    return;
+  }
+  int16_t g;
+  if (!mpuGyroZ(&g)) {
+    if (++imuErr >= IMU_MAX_ERR) imuOk = false;
+    return;
+  }
+  imuErr = 0;
+  float r = (float)g - gyroBias;            // LSB
+  if (still) {
+    if (imuStill < 255) imuStill++;
+  } else {
+    imuStill = 0;
+  }
+  float thr = IMU_STILL_DPS * GYRO_LSB_PER_DPS * (imuStill >= IMU_STILL_LONG ? 5.0f : 1.0f);
+  if (imuStill >= IMU_STILL_STEPS && fabsf(r) < thr) {
+    gyroBias += 0.02f * r;                  // đứng yên: hiệu chỉnh dần độ trôi, giữ nguyên góc
+    return;
+  }
+  yawDeg += IMU_YAW_SIGN * (r / GYRO_LSB_PER_DPS) * dt;
+  if (yawDeg >= 360.0f) yawDeg -= 360.0f;
+  if (yawDeg < 0.0f) yawDeg += 360.0f;
+}
+#endif
 
 // =====================================================================
 //  THAM SỐ
@@ -216,7 +352,9 @@ void printInfo() {
   Serial.print(',');
   Serial.print(CONTROL_PERIOD_MS);
   Serial.print(',');
-  Serial.println(P.mode);
+  Serial.print(P.mode);
+  Serial.print(',');
+  Serial.println(imuWho);
 }
 
 // =====================================================================
@@ -289,6 +427,15 @@ void controlStep() {
     float rpm = (float)d * (60.0f / COUNTS_PER_REV) / dt;
     speedN[i] += speedLpf * (rpm * INV_RPM_NOM - speedN[i]);
   }
+
+#if IMU_ENABLE
+  // 2b) Con quay: robot đứng yên khi không có lệnh và cả 4 bánh gần như không quay
+  bool still = !openLoop;
+  for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+    if (fabsf(targetRpm[i]) > 1e-3f || fabsf(speedN[i]) * RPM_NOMINAL > IDLE_SPEED_RPM) still = false;
+  }
+  imuUpdate(dt, still);
+#endif
 
   // 3) An toàn: nút dừng khẩn + mất lệnh từ Pi
 #if ESTOP_ENABLE
@@ -371,6 +518,7 @@ void sendTelemetry() {
   if (estopLatched) flags |= FLAG_ESTOP;
   if (cmdTimeout) flags |= FLAG_TIMEOUT;
   if (openLoop) flags |= FLAG_OPENLOOP;
+  if (imuOk) flags |= FLAG_YAW_OK;
   Serial.print(F("T,"));
   Serial.print(millis());
   for (uint8_t i = 0; i < NUM_MOTORS; i++) {
@@ -386,7 +534,9 @@ void sendTelemetry() {
   Serial.print(',');
   Serial.print(P.mode);
   Serial.print(',');
-  Serial.println(vbat, 2);
+  Serial.print(vbat, 2);
+  Serial.print(',');
+  Serial.println(yawDeg, 1);
 }
 
 // =====================================================================
@@ -500,6 +650,29 @@ void handleLine(char* line) {
       }
       break;
 
+    case 'G':                                     // đo lại độ lệch 0 con quay, góc = 0
+#if IMU_ENABLE
+      {
+        bool moving = false;
+        for (uint8_t i = 0; i < NUM_MOTORS; i++)
+          if (fabsf(targetRpm[i]) > 1e-3f || fabsf(speedN[i]) * RPM_NOMINAL > IDLE_SPEED_RPM) moving = true;
+        if (moving) {
+          Serial.println(F("A,ERR,G_MOVING"));
+        } else {
+          if (!imuOk) mpuConfigure();
+          imuOk = imuCalibrate();
+          imuErr = 0;
+          imuStill = 0;
+          Serial.println(imuOk ? F("A,OK,G") : F("A,ERR,G_IMU"));
+        }
+        lastStepUs = micros();                    // bỏ qua khoảng thời gian đo
+        nextCtrlUs = lastStepUs + CTRL_PERIOD_US;
+      }
+#else
+      Serial.println(F("A,ERR,G_OFF"));
+#endif
+      break;
+
     case '?':
       printInfo();
       break;
@@ -532,6 +705,8 @@ void readSerial() {
 //  SETUP / LOOP
 // =====================================================================
 void setup() {
+  MCUSR = 0;
+  wdt_disable();                                  // tắt watchdog còn sót sau reset (đo con quay mất ~0.7 s)
   // Đưa động cơ về trạng thái an toàn ngay khi khởi động
   for (uint8_t i = 0; i < NUM_MOTORS; i++) {
     pinMode(PIN_EN[i], OUTPUT);
@@ -567,6 +742,9 @@ void setup() {
   for (uint8_t i = 0; i < NUM_MOTORS; i++) ctrl[i].init(&P);
 
   Serial.begin(SERIAL_BAUD);
+#if IMU_ENABLE
+  imuBegin();                                     // ~0.7 s: robot phải đứng yên
+#endif
   printInfo();
 
   lastCmdMs = millis() - CMD_TIMEOUT_MS - 1;     // chưa có lệnh -> đứng yên

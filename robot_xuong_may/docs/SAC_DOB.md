@@ -97,7 +97,8 @@ chỉ phải thích nghi phần sai lệch nhỏ → tốc độ hồi phục kh
 |---|---|
 | 1. Đọc encoder | Đếm cạnh kênh A bằng ngắt (INT0/INT1/PCINT1), 1980 xung/vòng |
 | 2. Tốc độ | `RPM = Δxung·60/(1980·dt)` → chuẩn hóa → lọc thông thấp α = 0.5 |
-| 3. An toàn | Dừng khẩn (A4), mất lệnh từ Pi > 500 ms → đặt 0 |
+| 2b. Con quay | Đọc tốc độ quay trục Z của MPU-6050 (I2C A4/A5), trừ độ lệch 0, tích phân → góc yaw gửi về Pi |
+| 3. An toàn | Dừng khẩn (lệnh `E,1`), mất lệnh từ Pi > 500 ms → đặt 0 |
 | 4. Giới hạn gia tốc | `r` tiến dần đến tốc độ đặt (300 RPM/s) |
 | 5. SAC + DOB | `u = update(r, y)` |
 | 6. Xuất PWM | Bù vùng chết PWM (28/255) + chiều IN1/IN2 trên L298N |

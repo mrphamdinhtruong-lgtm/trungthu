@@ -26,6 +26,7 @@ class Telemetry:
     flags: int = 0
     mode: int = 2
     vbat: float = 0.0
+    yaw: Optional[float] = None      # góc quay từ con quay MPU-6050 (độ 0..360, dương = quay trái)
     rx_time: float = 0.0
 
     @property
@@ -39,6 +40,11 @@ class Telemetry:
     @property
     def open_loop(self) -> bool:
         return bool(self.flags & 0x04)
+
+    @property
+    def yaw_ok(self) -> bool:
+        """Arduino báo góc yaw hợp lệ (đã gắn & đọc được MPU-6050)."""
+        return bool(self.flags & 0x08) and self.yaw is not None
 
 
 @dataclass
@@ -84,6 +90,7 @@ def parse_line(line: str):
                 flags=int(parts[10]),
                 mode=int(parts[11]),
                 vbat=float(parts[12]),
+                yaw=float(parts[13]) if len(parts) >= 14 and parts[13] else None,
             )
         if tag == "X" and len(parts) >= 11:
             return "X", DebugSample(
@@ -93,7 +100,8 @@ def parse_line(line: str):
             )
         if tag == "I" and len(parts) >= 6:
             return "I", {"name": parts[1], "version": parts[2], "hash": parts[3],
-                         "ts_ms": int(parts[4]), "mode": int(parts[5])}
+                         "ts_ms": int(parts[4]), "mode": int(parts[5]),
+                         "imu": int(parts[6]) if len(parts) >= 7 and parts[6] else 0}
         if tag == "P" and len(parts) >= 3:
             return "P", (parts[1], float(parts[2]))
         if tag == "A":
@@ -255,3 +263,7 @@ class SerialLink:
 
     def request_info(self) -> None:
         self._write("?\n")
+
+    def gyro_zero(self) -> None:
+        """Đo lại độ lệch 0 con quay + đặt góc = 0 (robot phải đứng yên ~0.5 s)."""
+        self._write("G\n")

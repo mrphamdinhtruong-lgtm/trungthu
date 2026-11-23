@@ -42,7 +42,7 @@ Ký hiệu cột "Sửa?": ✏️ thường sửa · 🔧 sửa khi cần · �
 
 | File | Làm gì | Sửa? |
 |---|---|---|
-| `robot_firmware.ino` | Chương trình chính của Arduino: đọc encoder bằng ngắt, chạy 4 bộ điều khiển SAC-DOB mỗi 20 ms, nhận lệnh `W/S/E…` từ Pi, gửi telemetry `T,…`, tự dừng khi mất lệnh 0.5 s, watchdog | 🔧 hiếm |
+| `robot_firmware.ino` | Chương trình chính của Arduino: đọc encoder bằng ngắt, chạy 4 bộ điều khiển SAC-DOB mỗi 20 ms, **đọc con quay MPU-6050 (I2C A4/A5) → góc quay**, nhận lệnh `W/S/E/G…` từ Pi, gửi telemetry `T,…` (kèm góc), tự dừng khi mất lệnh 0.5 s, watchdog | 🔧 hiếm |
 | `sac_dob.h` | Thuật toán điều khiển tốc độ SAC + DOB (giống khối PID trong PLC nhưng thích nghi) | 🚫 (trừ khi nghiên cứu thuật toán) |
 | `config_gen.h` | Thông số cho Arduino – **TỰ SINH** từ `robot/config.py` khi chạy `flash_arduino.py` | 🚫 không sửa tay |
 
@@ -66,17 +66,18 @@ hoặc sửa file `.ino`.
 | `robot/kinematics.py` | Đổi "tiến / ngang / quay" thành tốc độ 4 bánh mecanum | 🚫 |
 | `robot/serial_link.py` | Gửi / nhận dòng chữ với Arduino qua USB | 🚫 |
 | `robot/display.py` | Màn hình tiếng Việt ("ĐANG DI CHUYỂN ĐẾN TRẠM 2", đếm ngược…) | 🔧 (đổi giao diện) |
-| `robot/compass.py`, `odometry.py`, `geometry.py`, `gpio_io.py`, `common.py` | La bàn, đo quãng đường, hình học camera, nút nhấn/còi, kiểu dữ liệu chung | 🚫 |
+| `robot/odometry.py`, `geometry.py`, `gpio_io.py`, `common.py` | Đo quãng đường + hướng (dùng góc MPU-6050 do Arduino gửi lên), hình học camera, nút nhấn/còi, kiểu dữ liệu chung | 🚫 |
+| `robot/compass.py` | *(dự phòng)* la bàn từ GY-271 nối Pi – **không dùng** khi có MPU-6050 trên Arduino (`COMPASS_ENABLE = False`) | 🚫 |
 | `models/best.onnx` + `models/best.metadata.json` | **Mô hình đã train** (dữ liệu, không phải code) – do `export_model.py` tạo | 🚫 |
-| `routes/`, `compass_cal.json`, `logs/` | Lộ trình đã dạy, hiệu chuẩn la bàn, nhật ký – tự tạo khi chạy | 🚫 |
+| `routes/`, `logs/` | Lộ trình đã dạy, nhật ký – tự tạo khi chạy | 🚫 |
 
 ### C. Công cụ chạy trên Pi (cần phần cứng robot)
 
 | File | Dùng khi |
 |---|---|
 | `flash_arduino.py` | nạp Arduino (chạy ở máy đang cắm Arduino – Pi hoặc laptop) |
-| `tools/motor_test.py` | thử chiều quay bánh, nhận dạng động cơ, đo đáp ứng SAC-DOB (kê robot lên) |
-| `tools/compass_calibrate.py` | hiệu chuẩn la bàn |
+| `tools/motor_test.py` | thử chiều quay bánh, **thử con quay MPU-6050 (`imu`)**, nhận dạng động cơ, đo đáp ứng SAC-DOB (kê robot lên) |
+| `tools/compass_calibrate.py` | *(dự phòng)* thử / hiệu chuẩn la bàn từ GY-271 nối Pi – không cần khi dùng MPU-6050 |
 | `training/capture_images.py` | chụp ảnh bằng camera robot (đưa nhóm train dùng) |
 | `scripts/install_pi.sh` | cài đặt Pi lần đầu |
 

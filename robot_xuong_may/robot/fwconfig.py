@@ -32,7 +32,17 @@ def _b(x) -> str:
     return "1" if bool(x) else "0"
 
 
+def check_pins(cfg) -> None:
+    """A4/A5 vừa là I2C (MPU-6050) vừa là dừng khẩn / đo pin -> không được bật cùng lúc."""
+    if getattr(cfg, "IMU_ENABLE", False):
+        used = [n for n in ("ESTOP_INPUT_ENABLE", "BATTERY_SENSE_ENABLE") if getattr(cfg, n, False)]
+        if used:
+            raise ValueError("robot/config.py: IMU_ENABLE = True dùng A4 (SDA) / A5 (SCL) cho MPU-6050 nên "
+                             + " và ".join(used) + " phải = False")
+
+
 def header_body(cfg) -> str:
+    check_pins(cfg)
     counts_per_rev = cfg.ENCODER_PPR_MOTOR * cfg.GEAR_RATIO * cfg.ENCODER_EDGES
     ratio = (cfg.BATTERY_DIVIDER_R1_K + cfg.BATTERY_DIVIDER_R2_K) / cfg.BATTERY_DIVIDER_R2_K
     lines = [
@@ -61,6 +71,12 @@ def header_body(cfg) -> str:
         f"#define ESTOP_ENABLE           {_b(cfg.ESTOP_INPUT_ENABLE)}",
         f"#define BATT_ENABLE            {_b(cfg.BATTERY_SENSE_ENABLE)}",
         f"#define BATT_DIVIDER_RATIO     {_f(ratio)}",
+        "",
+        "// ---- Con quay MPU-6050 (I2C: SDA = A4, SCL = A5) ----",
+        f"#define IMU_ENABLE             {_b(getattr(cfg, 'IMU_ENABLE', False))}",
+        f"#define IMU_I2C_ADDR           0x{int(getattr(cfg, 'IMU_I2C_ADDR', 0x68)):02X}",
+        f"#define IMU_YAW_SIGN           {_f(1.0 if getattr(cfg, 'IMU_YAW_SIGN', 1) >= 0 else -1.0)}",
+        f"#define IMU_STILL_DPS          {_f(getattr(cfg, 'IMU_STILL_DPS', 1.0))}",
         "",
         "// ---- Bộ điều khiển SAC + DOB ----",
         f"#define CTRL_MODE_DEFAULT      {int(cfg.CONTROLLER_MODE)}",
