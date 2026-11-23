@@ -52,8 +52,10 @@ SPEED_LPF_ALPHA = 0.5               # Hệ số lọc thông thấp tốc độ 
 IDLE_SPEED_RPM = 2.0                # Dưới ngưỡng này khi đặt 0 -> coi như đứng yên, ngắt PWM
 DIR_SWITCH_RPM = 4.0                # Encoder 1 kênh: chỉ đổi dấu đếm khi bánh gần dừng
 
-ESTOP_INPUT_ENABLE = False          # True: dùng nút dừng khẩn (tiếp điểm NC) nối A4 - GND
-BATTERY_SENSE_ENABLE = True         # True: đo áp pin 3S qua cầu phân áp vào A5
+ESTOP_INPUT_ENABLE = False          # True: dùng nút dừng khẩn (tiếp điểm NC) nối A4 - GND. CHỈ BẬT KHI ĐÃ ĐẤU
+                                    # (bật mà A4 để hở = robot luôn ở trạng thái DỪNG KHẨN)
+BATTERY_SENSE_ENABLE = False        # True: đo áp pin 3S qua cầu phân áp vào A5. CHỈ BẬT KHI ĐÃ ĐẤU cầu
+                                    # 10k/4.7k – chân A5 để hở đọc giá trị ngẫu nhiên -> báo "Pin yếu" giả
 BATTERY_DIVIDER_R1_K = 10.0         # Điện trở trên (pin+ -> A5), kΩ
 BATTERY_DIVIDER_R2_K = 4.7          # Điện trở dưới (A5 -> GND), kΩ
 BATTERY_WARN_V = 10.8               # 3S: 3.6 V/cell -> cảnh báo pin yếu

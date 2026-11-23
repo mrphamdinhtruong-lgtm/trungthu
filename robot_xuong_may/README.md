@@ -88,7 +88,7 @@ robot_xuong_may/
 ├── training/                # kiểm tra dataset (check_dataset), xuất ONNX + metadata, đánh giá; công cụ cho nhóm train
 ├── tools/                   # motor_test.py, sac_dob_sim.py, compass_calibrate.py
 ├── examples/                # 4 bài tập cho người mới: camera, nhận diện, gửi lệnh Arduino, máy trạng thái
-├── tests/                   # 113 kiểm thử tự động (pytest)
+├── tests/                   # 119 kiểm thử tự động (pytest), gồm chạy firmware trên ATmega328P mô phỏng
 ├── docs/                    # WIRING.md, NAVIGATION.md, SAC_DOB.md, TRAINING.md, ảnh
 └── scripts/                 # install_pi.sh, robot-autostart.desktop
 ```
@@ -171,7 +171,7 @@ Chạy thử **không cần phần cứng** (laptop/Pi): `python main.py --sim` 
 | Mất lệnh từ Pi > 500 ms | Arduino | tốc độ đặt = 0 |
 | Watchdog AVR 1 s | Arduino | treo chương trình → tự reset, động cơ tắt khi khởi động |
 | Mất telemetry Arduino > 1 s / mất ảnh > 2 s | Pi | LỖI HỆ THỐNG, dừng; khắc phục xong phải nhấn START |
-| Pin < 10.2 V liên tục 3 s | Pi | LỖI (Pin yếu), dừng; < 10.8 V cảnh báo |
+| Pin < 10.2 V liên tục 3 s (khi `BATTERY_SENSE_ENABLE = True`) | Pi | LỖI (Pin yếu), dừng; < 10.8 V cảnh báo |
 | Vật cản (YOLO hoặc sàn) trong làn < 0.8 m | Pi | GẶP VẬT CẢN – dừng |
 | Chế độ tay có vật cản phía trước | Pi | chặn lệnh tiến (vẫn cho lùi / quay) |
 | Giới hạn gia tốc 300 RPM/s, giới hạn 85 RPM | Arduino / Pi | chống trượt bánh, chống lật |
@@ -212,14 +212,15 @@ Chạy thử **không cần phần cứng** (laptop/Pi): `python main.py --sim` 
 ## 11. Kiểm thử phần mềm
 
 ```bash
-python -m pytest -q        # 113 kiểm thử: máy trạng thái, mô phỏng đủ lộ trình, tránh vật cản, dạy-lặp,
+python -m pytest -q        # 119 kiểm thử: máy trạng thái, mô phỏng đủ lộ trình, tránh vật cản, dạy-lặp,
                            # bộ nhận diện ONNX, Arduino giả qua cổng ảo, chia dữ liệu theo buổi,
                            # nhận diện sàn (gạch/gạch bông/bê tông), ORB, động học, giao thức,
                            # SAC-DOB và ĐỐI CHIẾU bản C++ firmware với bản Python
 python tools/sac_dob_sim.py   # đồ thị so sánh PI / SAC / SAC+DOB -> docs/img/sac_dob_sim.png
 ```
-Firmware đã được biên dịch thử cho ATmega328P (avr-gcc 7.3.0) với mọi tổ hợp tùy chọn: ~13 KB Flash (40 %),
-~0.6 KB RAM tĩnh, không cảnh báo. **Chưa được chạy trên phần cứng thật** – cần làm bước 3–12 ở mục 5.
+Firmware đã biên dịch với **Arduino AVR core 1.8.6** (board UNO, 0 cảnh báo): 16 202 byte (49 %), RAM 797 byte (39 %),
+và đã **chạy trên chip ATmega328P mô phỏng** (simavr) với mô hình 4 động cơ / encoder: bám tốc độ, tự dừng khi mất lệnh,
+dừng khẩn, xử lý lệnh sai (`tests/test_firmware_sim.py`). **Chưa chạy trên board và động cơ thật** – làm bước 3–12 ở mục 5.
 
 ## 12. Giới hạn cần nêu trong báo cáo
 
@@ -235,6 +236,7 @@ Firmware đã được biên dịch thử cho ATmega328P (avr-gcc 7.3.0) với m
 
 * **`docs/BAT_DAU_CHO_NGUOI_MOI.md` – người mới đọc trước: file nào chạy ở Arduino, file nào ở máy tính nhúng, 4 bài tập**
 
+* **`docs/NAP_ARDUINO.md` – sơ đồ chân Arduino, sơ đồ nguồn, các bước nạp (kèm `docs/BANG_DAU_DAY_ARDUINO.xlsx` để in, tích từng dây)**
 * `docs/WIRING.md` – sơ đồ đấu dây, bảng chân, nguồn, an toàn điện
 * `docs/NAVIGATION.md` – dẫn đường bằng camera, nhận diện sàn, lách vật cản, dạy – lặp lộ trình
 * `docs/SAC_DOB.md` – lý thuyết, cài đặt, mô phỏng, quy trình chỉnh SAC + DOB

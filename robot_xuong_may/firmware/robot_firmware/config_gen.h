@@ -4,7 +4,7 @@
 #ifndef CONFIG_GEN_H
 #define CONFIG_GEN_H
 
-#define FW_CONFIG_HASH         "ad3fd176"
+#define FW_CONFIG_HASH         "d9e148d0"
 
 // ---- Truyền thông & thời gian ----
 #define SERIAL_BAUD            115200UL
@@ -29,7 +29,7 @@
 
 // ---- An toàn & pin ----
 #define ESTOP_ENABLE           0
-#define BATT_ENABLE            1
+#define BATT_ENABLE            0
 #define BATT_DIVIDER_RATIO     3.1276595744680846f
 
 // ---- Bộ điều khiển SAC + DOB ----

@@ -61,7 +61,7 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate      Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
 pip install ultralytics onnx onnxslim   # CHỈ để chuyển best.pt -> best.onnx ở bước 7 (không dùng để train)
-python -m pytest -q                     # phải thấy: 113 passed
+python -m pytest -q                     # phải thấy: 119 passed
 python main.py --sim                    # robot mô phỏng đi TRẠM 1 → 2 → 3, đếm ngược 15 s
 ```
 **Raspberry Pi 4:** `bash scripts/install_pi.sh` rồi `rpicam-hello -t 3000` (camera có hình).
@@ -91,7 +91,7 @@ những gì phải bàn giao cho bạn và lúc nào).
 4. Gửi `docs/YEU_CAU_NHOM_TRAIN.md`. Nếu nhóm cần ảnh từ camera robot, đưa Người 1 lệnh (họ tự chụp):
    `python training/capture_images.py --session robot_sang`.
 
-**Đạt khi:** nhóm xác nhận `0=tram_1, 1=tram_2, 2=tram_3`; `pytest` 113 passed; `main.py --sim` chạy.
+**Đạt khi:** nhóm xác nhận `0=tram_1, 1=tram_2, 2=tram_3`; `pytest` 119 passed; `main.py --sim` chạy.
 
 ---
 

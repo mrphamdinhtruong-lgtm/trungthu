@@ -104,8 +104,8 @@ chỉ phải thích nghi phần sai lệch nhỏ → tốc độ hồi phục kh
 | 7. Debug (tùy chọn) | `X,...` ref, ym, y, u, d̂, Ke, Kx, Ku – để vẽ đồ thị báo cáo |
 
 Tải CPU ước tính dưới 25 % (4 bộ điều khiển số thực ~2–3 ms/chu kỳ + ~15 000 ngắt encoder/giây ở tốc độ tối đa).
-Đã kiểm tra biên dịch cho ATmega328P bằng avr-gcc 7.3.0 (cùng phiên bản trong core arduino:avr 1.8.x),
-không cảnh báo: chương trình khoảng 13 KB (40 % flash), RAM tĩnh khoảng 0,6 KB chưa tính bộ đệm Serial.
+Đã biên dịch với Arduino AVR core 1.8.6 (board UNO), không cảnh báo: 16 202 byte (49 % flash), RAM tĩnh 797 byte (39 %).
+Đã chạy trên ATmega328P mô phỏng (simavr) + mô hình động cơ: bám 50 RPM ±1 sau khoảng 0,6 s (`tests/test_firmware_sim.py`).
 
 ## 5. Kết quả mô phỏng (`python tools/sac_dob_sim.py`)
 

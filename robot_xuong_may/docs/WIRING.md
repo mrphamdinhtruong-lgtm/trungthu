@@ -2,6 +2,10 @@
 
 > Mọi chân dưới đây khớp với `firmware/robot_firmware/robot_firmware.ino` và `robot/config.py`.
 > Nếu đổi chân phải sửa cả hai file rồi chạy lại `python flash_arduino.py`.
+> Sơ đồ hình: `img/so_do_chan_arduino.png`, `img/so_do_nguon.png` · Bảng tích từng dây: `BANG_DAU_DAY_ARDUINO.xlsx` ·
+> Các bước nạp: `NAP_ARDUINO.md`.
+
+![Sơ đồ chân Arduino](img/so_do_chan_arduino.png)
 
 ## 1. Sơ đồ nguồn
 
@@ -51,8 +55,8 @@
 | **D10** (PWM) | L298N #2 **ENB** | PWM bánh RR | **tháo jumper ENB** |
 | **A0** | L298N #2 IN3 | Chiều RR | |
 | **A1** | L298N #2 IN4 | Chiều RR | |
-| **A4** | Nút dừng khẩn NC → GND | Báo dừng khẩn (tùy chọn) | INPUT_PULLUP: hở mạch = DỪNG |
-| **A5** | Giữa cầu phân áp 10k/4.7k | Đo áp pin (tùy chọn) | thêm tụ 100 nF A5–GND |
+| **A4** | Nút dừng khẩn NC → GND | Báo dừng khẩn (tùy chọn) | INPUT_PULLUP: hở mạch = DỪNG. **Mặc định tắt** (`ESTOP_INPUT_ENABLE`) |
+| **A5** | Giữa cầu phân áp 10k/4.7k | Đo áp pin (tùy chọn) | thêm tụ 100 nF A5–GND. **Mặc định tắt** (`BATTERY_SENSE_ENABLE`) – để hở sẽ báo pin yếu giả |
 | 5V | VCC 4 encoder | Nguồn encoder | |
 | GND | GND encoder, GND 2 L298N | Mass chung | |
 
