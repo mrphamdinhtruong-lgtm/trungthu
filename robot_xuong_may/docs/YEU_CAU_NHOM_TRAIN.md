@@ -46,10 +46,12 @@ Báo ETA cho người viết code mỗi 15 phút.
 | Đợt ảnh đầu (để thử code đọc ảnh) | Người 1 | 10:30 |
 | Bộ dữ liệu gộp + `data.yaml` (thư mục hoặc zip tải từ cloud) | Người 3 | 13:00 |
 | `best.pt` + `args.yaml` + `results.csv` (+ `confusion_matrix.png`) | Người 3 | khi train xong (~14:30) |
+| **`best.onnx`** xuất ngay trên máy train: `yolo export model=best.pt format=onnx imgsz=416 opset=12 simplify=True dynamic=False` | Người 3 | cùng `best.pt` |
 | **Tên phiên bản** mô hình: `tram3_v1`, `tram3_v2`… (tăng mỗi lần train lại) | Người 3 | cùng `best.pt` |
 | Kết quả kiểm tra trên tập test (số đúng / nhầm / bỏ sót mỗi trạm) | Người 2 | 15:15 |
 | Ảnh / video cảnh MỚI (không có trong train), video 4:3 nếu được | Người 1, 2 | 15:15 |
 | Bản sao ảnh gốc, nhãn, `.pt` + cấu hình cuối ngày | cả nhóm | 18:00 |
 
-Người viết code trả lại: `best.onnx` + `best.metadata.json` (đúng 3 nhãn, có phiên bản), bảng đánh giá bằng code robot,
+Người viết code chép `best.onnx` vào `models/` (code robot tự đọc tên lớp trong file ONNX và kiểm tra thứ tự 0 = tram_1,
+1 = tram_2, 2 = tram_3), rồi trả lại: bảng đánh giá bằng code robot,
 danh sách lỗi (`logs/eval_test_*.csv`) để nhóm chụp bổ sung / sửa nhãn.
